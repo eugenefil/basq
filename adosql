@@ -51,26 +51,12 @@ def ado_type_to_general(column_info):
 
 
 def execsql(cursor, cmd):
-    # Int conversion for Visual FoxPro is only possible at cursor level, when
-    # column information is available to help detect ints (see
-    # ado_type_to_general()). Also fixed-width columns in FoxPro are returned
-    # with trailing spaces, so trimming is necessary.
-    type_converters = {
-        'integer': adodbapi.apibase.cvtInt,
-        'string': cvtRTrim
-    }
-
     cursor.execute(cmd)
 
     columns = []
     for i, desc in enumerate(cursor.description):
         coltype = ado_type_to_general(desc)
         columns.append({'name': desc[COLUMN_NAME], 'type': coltype})
-
-        try:
-            cursor.converters[i] = type_converters[coltype]
-        except KeyError:
-            pass
 
     return cursor, columns
 
@@ -90,6 +76,9 @@ def main(connstr):
     conn.variantConversions[adodbapi.ado_consts.adNumeric] = (
         adodbapi.apibase.cvtFloat
     )
+    # fixed-width char columns in FoxPro are returned with trailing spaces, so
+    # right-trimming is necessary
+    conn.variantConversions[adodbapi.ado_consts.adChar] = cvtRTrim
     # convert empty dates to None, truncate time (which is empty)
     conn.variantConversions[adodbapi.ado_consts.adDBDate] = cvtDate(
         conn.variantConversions[adodbapi.ado_consts.adDBDate]
