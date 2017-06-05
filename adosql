@@ -34,7 +34,8 @@ def cvtRTrim(s):
 
 ADO_INTEGER = adodbapi.apibase.DBAPITypeObject(
     adodbapi.apibase.adoIntegerTypes +
-    adodbapi.apibase.adoLongTypes)
+    adodbapi.apibase.adoLongTypes
+)
 
 def ado_type_to_general(column_info):
     adotype = column_info[COLUMN_TYPE]
@@ -43,8 +44,7 @@ def ado_type_to_general(column_info):
     elif adotype == ADO_INTEGER:
         return 'integer'
     elif adotype == adodbapi.NUMBER:
-        # in Visual FoxPro number with zero decimals is an integer
-        return 'integer' if column_info[COLUMN_SCALE] == 0 else 'number'
+        return 'number'
     elif adotype == adodbapi.DATETIME:
         return 'date'
     raise TypeError('ADO type %s cannot be converted to general type' % adotype)
