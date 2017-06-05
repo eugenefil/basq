@@ -37,7 +37,7 @@ def test_select_string(capfd):
         stdin=subprocess.PIPE
     )
     p.communicate(
-        "select * from string"
+        "select cast('string1' as char(10)) as value from dummy where n < 1"
     )
 
     assert p.returncode == 0
