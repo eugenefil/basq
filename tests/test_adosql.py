@@ -62,16 +62,27 @@ def sql(cmd):
     return list(csv.reader(StringIO(out), delimiter='\t'))
 
 
+def select(expr):
+    """Return value specified by sql expression.
+
+    The function itself constructs the query to adosql to retrieve the
+    value.
+    """
+    # Query is built as follows. FoxPro requires FROM clause, so just
+    # appending expr to SELECT does not work. Thus there is a `dummy'
+    # table with a single column `n' with increasing values: 0, 1,
+    # ... To get N values from it specify `where n < N'.
+    return sql("select %s from dummy where n < 1" % expr)[1][0]
+
+
 def test_select_string():
-    assert 'string1' == sql(
-        "select cast('string1' as char(10)) from dummy where n < 1"
-    )[1][0]
+    # note the absence of trailing spaces in returned value despite
+    # char type being wider than the value
+    assert select("cast('string1' as char(10))") == 'string1'
 
 
 def test_select_numeric():
-    assert '1.0' == sql(
-        "select cast(1 as numeric(10, 4)) from dummy where n < 1"
-    )[1][0]
+    assert select("cast(123.456 as numeric(10, 4))") == '123.456'
 
 
 #     assert out == '''
