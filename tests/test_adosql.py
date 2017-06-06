@@ -20,6 +20,8 @@
 import subprocess
 import os
 import os.path as path
+import csv
+from io import StringIO
 
 import pytest
 
@@ -30,23 +32,46 @@ os.environ['PATH'] = (
 )
 
 
-def test_select_string(capfd):
+def run(input):
+    """Run adosql, pipe input to it and return its captured output.
+
+    Output is returned as a tuple (stdout, stderr). If program exits
+    with non-zero code, throw subprocess.CalledProcessError exception.
+    """
     p = subprocess.Popen(
         ['adosql', 'vfp', 'vfpdb/db.dbc'],
         universal_newlines=True,
-        stdin=subprocess.PIPE
+        stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE
     )
-    p.communicate(
-        "select cast('string1' as char(10)) as value from dummy where n < 1"
-    )
+    out, err = p.communicate(input)
 
-    assert p.returncode == 0
+    if p.returncode != 0:
+        raise subprocess.CalledProcessError()
 
-    out, err = capfd.readouterr()
-    assert '''
-value\r
-string1\r
-'''.lstrip() == out
+    return out, err
+
+
+def sql(cmd):
+    """Run cmd with adosql and return rows parsed from output tsv.
+
+    Returned rows are a list of lists including header.
+    """
+    out, err = run(cmd)
+    return list(csv.reader(StringIO(out), delimiter='\t'))
+
+
+def test_select_string():
+    assert 'string1' == sql(
+        "select cast('string1' as char(10)) from dummy where n < 1"
+    )[1][0]
+
+
+def test_select_numeric():
+    assert '1.0' == sql(
+        "select cast(1 as numeric(10, 4)) from dummy where n < 1"
+    )[1][0]
 
 
 #     assert out == '''
