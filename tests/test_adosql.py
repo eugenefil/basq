@@ -96,10 +96,10 @@ def selectsql(expr):
     """
     # Query is built as follows. FoxPro requires FROM clause, so just
     # appending expr to SELECT does not work. Thus there is a `dummy'
-    # table with a single column `n' with increasing values: 0, 1,
-    # ... To get N values from it specify `where n < N'. Second column
-    # is added, because empty string in one-column csv is parsed as
-    # empty row instead of row with empty string.
+    # table with a single integer column `n' with increasing values:
+    # 0, 1, ... To get N values from it specify `where n < N'. Second
+    # column is added, because empty string in one-column csv is
+    # parsed as empty row instead of row with empty string.
     return "select %s, 0 from dummy where n < 1" % expr
 
 
@@ -127,6 +127,11 @@ def select(expr):
         ('big-width-and-precision', 'cast(1.2 as numeric(20, 10))', '1.2'),
         ('numeric-is-float', '1', '1.0'),
         ('negative-numeric', '-1', '-1.0'),
+
+        # integers
+        # a standalone integer number is numeric, so use cast
+        ('sample-integer', 'cast(123 as integer)', '123'),
+        ('negative-integer', 'cast(-100 as integer)', '-100'),
 
         # dates
         ('sample-date', 'date(1999, 12, 31)', '1999-12-31')
