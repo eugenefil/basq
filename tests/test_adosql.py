@@ -88,23 +88,37 @@ def execsql(cmd):
     return list(csv.reader(StringIO(out), delimiter='\t'))
 
 
-def selectsql(expr):
-    """Return sql query to retrieve the expr value.
+def selectsql(*column_defs, rowcount=1):
+    """Return SELECT query to retrieve specified rows and columns.
 
-    expr must a valid sql expression.
+    Each column definition in column_defs must be a valid sql
+    expression.
+
+    To return rowcount rows there is a `dummy' table in the test
+    database with a single integer column `n' with increasing values: 0,
+    1, ... To get N rows from it specify `where n < N'.
     """
-    # Query is built as follows. FoxPro requires FROM clause, so just
-    # appending expr to SELECT does not work. Thus there is a `dummy'
-    # table with a single integer column `n' with increasing values:
-    # 0, 1, ... To get N values from it specify `where n < N'. Second
-    # column is added, because empty string in one-column csv is
-    # parsed as empty row instead of row with empty string.
-    return "select %s, 0 from dummy where n < 1" % expr
+    assert rowcount < 3 # 2 rows in the table now
+    return "select %s from dummy where n < %d" % (
+        ', '.join(column_defs),
+        rowcount
+    )
 
 
-def select(expr):
+def select(*column_defs, rowcount=1):
+    """Return rowcount rows of columns specified with column_defs.
+
+    See selectsql() for details.
+    """
+    return execsql(selectsql(*column_defs, rowcount=rowcount))
+
+
+def selectvalue(expr):
     """Return value specified by sql expression."""
-    return execsql(selectsql(expr))[1][0]
+    # Second dummy column '0' is added, because empty string value in
+    # one-column csv is written as empty line which is later parsed as
+    # row with no values instead of row with one empty string value.
+    return select(expr, '0')[1][0]
 
 
 @pytest.mark.parametrize(
@@ -146,16 +160,16 @@ def test_retrieve_value(testid, expr, expected_value):
     tests to run on py.test command line with -k. Spaces in testid are
     not allowed.
     """
-    assert select(expr) == expected_value
+    assert selectvalue(expr) == expected_value
 
 
 def test_retrieve_no_rows():
     "Test case when no rows were returned, only header."
-    assert execsql("select n from dummy where n < 0") == [['n']]
+    assert select('n', rowcount=0) == [['n']]
 
 
 def test_retrieve_many_rows_many_cols():
-    assert execsql("select n, n + 1 next from dummy where n < 2") == [
+    assert select('n', 'n + 1 as next', rowcount=2) == [
         ['n', 'next'],
         ['0', '1.0'], # n is integer, but n + 1 becomes numeric
         ['1', '2.0']
