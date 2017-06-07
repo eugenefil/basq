@@ -1,11 +1,10 @@
 ## output:
+# typed tsv output
+# parameterized select
 # empty date
 # null
 # binary
-# empty output
-# typed tsv output
-# parameterized select
-#
+
 ## input:
 # insert
 # update
@@ -20,10 +19,10 @@
 # parameterized insert
 # parameterized update
 # parameterized delete
-#
+
 # multiple queries
 # transaction rollback on error
-#
+
 # multiple parameterized queries
 # multiple parameterized queries (empty strings in one-column data)
 
@@ -150,8 +149,14 @@ def test_retrieve_value(testid, expr, expected_value):
     assert select(expr) == expected_value
 
 
-#     assert out == '''
-# string	integer	number	date	binary
-# line1	1234	12.34	1999-12-31	aGVsbG8=
-# line2	5678	0.5678	2000-01-01	d29ybGQ=
-# '''.lstrip()
+def test_retrieve_no_rows():
+    "Test case when no rows were returned, only header."
+    assert execsql("select n from dummy where n < 0") == [['n']]
+
+
+def test_retrieve_many_rows_many_cols():
+    assert execsql("select n, n + 1 next from dummy where n < 2") == [
+        ['n', 'next'],
+        ['0', '1.0'], # n is integer, but n + 1 becomes numeric
+        ['1', '2.0']
+    ]
