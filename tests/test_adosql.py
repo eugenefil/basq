@@ -127,7 +127,14 @@ def test_select_string():
 
 
 def test_select_numeric():
-    assert select("cast(123.456 as numeric(10, 4))") == '123.456'
+    assert select('123.456') == '123.456'
+
+    assert select('cast(123.456 as numeric(20, 10))') == '123.456'
+
+    # numeric is float
+    assert select('1') == '1.0'
+
+    assert select('-1') == '-1.0'
 
 
 #     assert out == '''
