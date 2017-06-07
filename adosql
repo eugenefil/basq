@@ -63,13 +63,19 @@ def execsql(cursor, cmd):
     return cursor, columns
 
 
-def output_tsv(file, rows, cols):
+def output_tsv(file, rows, cols, typed_header=False):
     writer = csv.writer(file, delimiter='\t')
-    writer.writerow(c['name'] for c in cols)
+
+    colnamefunc = {
+        False: lambda col: col['name'],
+        True: lambda col: col['name'] + ' ' + col['type']
+    }[typed_header]
+    writer.writerow(colnamefunc(c) for c in cols)
+
     writer.writerows(rows)
 
 
-def main(connstr):
+def main(connstr, typed_header=False):
     conn = adodbapi.connect(connstr)
 
     # set proper connection-wide db-to-python type conversions
@@ -91,7 +97,7 @@ def main(connstr):
         results = execsql(cur, sqlcmd)
         if results:
             rows, cols = results
-            output_tsv(sys.stdout, rows, cols)
+            output_tsv(sys.stdout, rows, cols, typed_header)
 
     cur.close()
     conn.close()
@@ -117,6 +123,12 @@ def mssqlconnstr(args):
 
 def parse_args():
     parser = argparse.ArgumentParser()
+    parser.add_argument(
+        '-typed-header',
+        action='store_true',
+        help='output typed header. Each column will contain its type delimited from name by space'
+    )
+
     subparsers = parser.add_subparsers(title='commands')
 
     vfpparser = subparsers.add_parser(
@@ -178,4 +190,4 @@ def setup():
 if __name__ == '__main__':
     args = parse_args()
     setup()
-    main(args.getconnstr(args))
+    main(args.getconnstr(args), args.typed_header)

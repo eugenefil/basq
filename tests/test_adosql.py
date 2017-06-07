@@ -1,5 +1,4 @@
 ## output:
-# typed tsv output
 # parameterized select
 # empty date
 # null
@@ -53,17 +52,17 @@ class RunError(subprocess.CalledProcessError):
         return "%s Captured stderr:\n%s" % (msg, self.stderr)
 
 
-def run(input):
-    """Run adosql, pipe input to it and return its captured output.
+def run(args, input):
+    """Run process, pipe input to it and return its captured output.
 
     Output is returned as a tuple (stdout, stderr). If program exits
-    with non-zero code, throw subprocess.CalledProcessError exception.
+    with non-zero code, throw RunError exception.
     """
     # use binary streams (universal_newlines=False) and encode/decode
     # manually, otherwise \r\n in returned query string fields gets
     # converted to \n, i.e. data gets corrupted
     p = subprocess.Popen(
-        ['adosql', 'vfp', 'vfpdb/db.dbc'],
+        args,
         stdin=subprocess.PIPE,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE
@@ -79,12 +78,19 @@ def run(input):
     return out, err
 
 
-def execsql(cmd):
-    """Exec cmd with adosql and return rows parsed from output tsv.
+def execsql(sql, typed_header=False):
+    """Exec sql with adosql and return rows parsed from output tsv.
 
-    Returned rows are a list of lists including header.
+    Returned rows are a list of lists including header. If typed_header
+    is True, adosql must return typed header: each column will contain
+    its type delimited from name by space.
     """
-    out, err = run(cmd)
+    cmd = (
+        ['adosql'] +
+        (['-typed-header'] if typed_header else []) +
+        ['vfp', 'vfpdb/db.dbc']
+    )
+    out, err = run(cmd, sql)
     return list(csv.reader(StringIO(out), delimiter='\t'))
 
 
@@ -94,9 +100,9 @@ def selectsql(*column_defs, rowcount=1):
     Each column definition in column_defs must be a valid sql
     expression.
 
-    To return rowcount rows there is a `dummy' table in the test
-    database with a single integer column `n' with increasing values: 0,
-    1, ... To get N rows from it specify `where n < N'.
+    `dummy' table in the test database is queried. It has a single
+    integer column `n' with increasing values: 0, 1, ... To get rowcount
+    rows from it `where n < rowcount' is used.
     """
     assert rowcount < 3 # 2 rows in the table now
     return "select %s from dummy where n < %d" % (
@@ -105,12 +111,16 @@ def selectsql(*column_defs, rowcount=1):
     )
 
 
-def select(*column_defs, rowcount=1):
+def select(*column_defs, rowcount=1, typed_header=False):
     """Return rowcount rows of columns specified with column_defs.
 
-    See selectsql() for details.
+    First row is header. See selectsql() and execsql() for further
+    details.
     """
-    return execsql(selectsql(*column_defs, rowcount=rowcount))
+    return execsql(
+        selectsql(*column_defs, rowcount=rowcount),
+        typed_header=typed_header
+    )
 
 
 def selectvalue(expr):
@@ -173,4 +183,19 @@ def test_retrieve_many_rows_many_cols():
         ['n', 'next'],
         ['0', '1.0'], # n is integer, but n + 1 becomes numeric
         ['1', '2.0']
+    ]
+
+
+def test_typed_header():
+    assert select(
+        "'john' as name",
+        'cast(40 as int) as age',
+        '73.5 as weight',
+        'date(1980, 1, 1) as birth',
+        typed_header=True
+    )[0] == [
+        'name string',
+        'age integer',
+        'weight number',
+        'birth date'
     ]
