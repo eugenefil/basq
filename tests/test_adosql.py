@@ -109,32 +109,41 @@ def select(expr):
     return execsql(selectsql(expr))[1][0]
 
 
-def test_select_string():
-    assert select("'test'") == 'test'
+@pytest.mark.parametrize(
+    'expr,expected_value',
+    [
+        # strings (note additional quotes in expressions)
+        # sample test
+        ("'test'", 'test'),
+        # empty string
+        ("''", ''),
+        # no trailing spaces when char type is wider than value
+        ("cast('test' as char(100))", 'test'),
+        # non-ascii string
+        ("'Привет, мир!'", 'Привет, мир!'),
+        # special chars
+        ("'1' + chr(13) + chr(10) + '2'", '1\r\n2'),
+        ("'1\t2'", '1\t2'),
+        ("'Say \"hi\"'", 'Say "hi"'),
 
-    assert select("''") == ''
-    
-    # no trailing spaces when char type is wider than value
-    assert select("cast('test' as char(100))") == 'test'
+        # numeric type
+        # sample test
+        ('123.456', '123.456'),
+        # width and precision do not affect output
+        ('cast(123.456 as numeric(20, 10))', '123.456'),        
+        # numeric is float
+        ('1', '1.0'),
+        # negative
+        ('-1', '-1.0')
+    ]
+)        
+def test_retrieve_value(expr, expected_value):
+    """Test how values are returned from database.
 
-    # non-ascii string
-    assert select("'Привет, мир!'") == 'Привет, мир!'
-
-    # special chars
-    assert select("'1' + chr(13) + chr(10) + '2'") == '1\r\n2'
-    assert select("'1\t2'") == '1\t2'
-    assert select("'Say \"hi\"'") == 'Say "hi"'
-
-
-def test_select_numeric():
-    assert select('123.456') == '123.456'
-
-    assert select('cast(123.456 as numeric(20, 10))') == '123.456'
-
-    # numeric is float
-    assert select('1') == '1.0'
-
-    assert select('-1') == '-1.0'
+    expr must be an sql expression which is substituted into SELECT
+    query and must return expected_value.
+    """
+    assert select(expr) == expected_value
 
 
 #     assert out == '''
