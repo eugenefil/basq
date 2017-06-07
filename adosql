@@ -19,12 +19,14 @@ CONN_STR_MSSQL_WINAUTH = u'Integrated Security=SSPI'
 
 
 def cvtDate(default_conv):
+    """Return datetime.date from COM date.
+
+    Default adodbapi converter converts COM date (which is number of
+    days since 1899-12-30) to datetime.datetime. This converter extracts
+    date from that datetime.
+    """
     def todate(com_date):
-        return (
-            None
-            if float(com_date) == 0.0
-            else default_conv(com_date).date()
-        )
+        return default_conv(com_date).date()
     return todate
 
 
@@ -76,10 +78,10 @@ def main(connstr):
     conn.variantConversions[adodbapi.ado_consts.adNumeric] = (
         adodbapi.apibase.cvtFloat
     )
-    # fixed-width char columns in FoxPro are returned with trailing spaces, so
-    # right-trimming is necessary
+    # fixed-width char columns in FoxPro are returned with trailing
+    # spaces, so right-trimming is necessary
     conn.variantConversions[adodbapi.ado_consts.adChar] = cvtRTrim
-    # convert empty dates to None, truncate time (which is empty)
+    # convert pure date to date, not datetime
     conn.variantConversions[adodbapi.ado_consts.adDBDate] = cvtDate(
         conn.variantConversions[adodbapi.ado_consts.adDBDate]
     )

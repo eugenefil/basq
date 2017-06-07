@@ -1,5 +1,4 @@
 ## output:
-# date
 # empty date
 # null
 # binary
@@ -110,38 +109,38 @@ def select(expr):
 
 
 @pytest.mark.parametrize(
-    'expr,expected_value',
+    'testid,expr,expected_value',
     [
         # strings (note additional quotes in expressions)
-        # sample test
-        ("'test'", 'test'),
-        # empty string
-        ("''", ''),
-        # no trailing spaces when char type is wider than value
-        ("cast('test' as char(100))", 'test'),
-        # non-ascii string
-        ("'Привет, мир!'", 'Привет, мир!'),
-        # special chars
-        ("'1' + chr(13) + chr(10) + '2'", '1\r\n2'),
-        ("'1\t2'", '1\t2'),
-        ("'Say \"hi\"'", 'Say "hi"'),
+        ('sample-string', "'test'", 'test'),
+        ('empty-string', "''", ''),
+        # trailing spaces are trimmed when char type is wider than value
+        ('no-trailing-spaces', "cast('test' as char(100))", 'test'),
+        ('non-ascii-string', "'Привет, мир!'", 'Привет, мир!'),
+        ('special-chars-in-string', "'1' + chr(13) + chr(10) + '2'", '1\r\n2'),
+        ('tabs-in-string', "'1\t2'", '1\t2'),
+        ('doublequotes-in-string', "'Say \"hi\"'", 'Say "hi"'),
 
         # numeric type
-        # sample test
-        ('123.456', '123.456'),
+        ('sample-numeric', '123.456', '123.456'),
         # width and precision do not affect output
-        ('cast(123.456 as numeric(20, 10))', '123.456'),        
-        # numeric is float
-        ('1', '1.0'),
-        # negative
-        ('-1', '-1.0')
+        ('big-width-and-precision', 'cast(1.2 as numeric(20, 10))', '1.2'),
+        ('numeric-is-float', '1', '1.0'),
+        ('negative-numeric', '-1', '-1.0'),
+
+        # dates
+        ('sample-date', 'date(1999, 12, 31)', '1999-12-31')
     ]
 )        
-def test_retrieve_value(expr, expected_value):
+def test_retrieve_value(testid, expr, expected_value):
     """Test how values are returned from database.
 
     expr must be an sql expression which is substituted into SELECT
     query and must return expected_value.
+
+    testid uniquely identifies the test and is used to select specific
+    tests to run on py.test command line with -k. Spaces in testid are
+    not allowed.
     """
     assert select(expr) == expected_value
 
