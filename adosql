@@ -58,6 +58,10 @@ def execsql(cursor, cmd, input_rows=None):
     else:
         cursor.execute(cmd)
 
+    # don't return any results if there are no
+    if cursor.description is None:
+        return None
+
     columns = []
     for i, desc in enumerate(cursor.description):
         coltype = ado_type_to_general(desc)
@@ -110,6 +114,7 @@ def main(connstr, parameterized=False, typed_header=False):
             writerows(sys.stdout, rows, cols, typed_header)
 
     cur.close()
+    conn.commit()
     conn.close()
 
 

@@ -32,8 +32,12 @@ import os
 import os.path as path
 import csv
 from io import StringIO
+import shutil
 
 import pytest
+
+
+DBPATH = 'vfpdb/db.dbc'
 
 
 # add path to adosql to PATH
@@ -81,7 +85,7 @@ def run(args, input):
 
 
 def execsql(sql, input_rows=None, typed_header=False):
-    """Exec sql with adosql and return rows parsed from output tsv.
+    """Exec sql with adosql and return rows from output tsv if any.
 
     If passed, input_rows must a be a list of rows of input values
     (including header) for parameterized query.
@@ -94,7 +98,7 @@ def execsql(sql, input_rows=None, typed_header=False):
         ['adosql'] +
         (['-params'] if input_rows else []) +
         (['-typed-header'] if typed_header else []) +
-        ['vfp', 'vfpdb/db.dbc']
+        ['vfp', DBPATH]
     )
 
     input = sql
@@ -225,3 +229,15 @@ def test_retrieve_value_parameterized():
         ['c1', 'c2'],
         ['\r\n', '\'"']
     ])[1] == ['\r\n', '\'"']
+
+
+def test_insert_row(tmpdir):
+    origdbdir, dbname = path.split(DBPATH)
+    dbdir = tmpdir.join(origdbdir)
+    shutil.copytree(origdbdir, dbdir)
+    os.chdir(tmpdir)
+
+    execsql("insert into person values (1, 'john')")
+    assert execsql("select * from person")[1:] == [
+        ['1', 'john']
+    ]
