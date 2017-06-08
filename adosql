@@ -3,6 +3,7 @@
 import sys
 import csv
 import argparse
+import datetime
 
 import adodbapi
 
@@ -84,6 +85,8 @@ def readrows(file):
     ]
 
     idfunc = lambda x: x
+    def todate(s):
+        return datetime.datetime.strptime(s, '%Y-%m-%d').date()
     converter_funcs = {
         'string': idfunc,
         'number': float,
@@ -94,7 +97,8 @@ def readrows(file):
         # ADODB.Command I got: 1130168319 for passed -1, 1130102784
         # for 0, 1130102785 for 1 and so on. In contrast passing
         # integers to Microsoft ACE provider works fine.
-        'integer': float
+        'integer': float,
+        'date': todate
     }
     converters = [converter_funcs[col['type']] for col in header]
 

@@ -2,7 +2,9 @@
 # parameterized select with ?
 # parameterized select: named params
 # parameterized select: no input rows
+# parameterized select: no types means string
 # parameterized select: superfluous spaces in header
+# parameterized select: unknown input type
 # empty date
 # null
 # binary
@@ -227,11 +229,38 @@ def test_typed_header():
     ]
 
 
-def test_retrieve_value_parameterized():
-    assert select('?', '?', input_rows=[
-        ['c1', 'c2'],
-        ['\r\n', '\'"']
-    ])[1] == ['\r\n', '\'"']
+@pytest.mark.parametrize(
+    'value,type',
+    [
+        ('\r\n', 'string'),
+        ('1.0', 'number'),
+        # ('1', 'integer') is skipped due to the bug in vfp oledb
+        # provider (see comments in adosql input type converters), but
+        # this case is covered (e.g. in test to insert rows
+        # parameterized)
+        ('1999-12-31', 'date')
+    ]
+)
+def test_pass_value_parameterized(value, type):
+    """Test passing each type of value parameterized to ADO.
+
+    If we know that passing each type parameterized to ADO works fine,
+    there is no need to test each type with each type of sql query. For
+    example, if passing dates parameterized works with SELECT, then
+    passing dates works and it will work with INSERT, UPDATE, DELETE.
+    """
+    # input and output rows could be made totally the same, but that's
+    # kinda suspicious, so let's change column names
+    def rows(colname):
+        return [
+            [colname + ' ' + type],
+            [value]
+        ]
+    assert select(
+        '? as out',
+        typed_header=True,
+        input_rows=rows('in')
+    ) == rows('out')
 
 
 @pytest.fixture
@@ -263,7 +292,7 @@ def test_insert_row(tmpdb):
     ]
 
 
-def test_insert_row_parameterized(tmpdb):
+def test_insert_rows_parameterized(tmpdb):
     execsql(
         "insert into person values (?, ?)",
         input_rows=[
