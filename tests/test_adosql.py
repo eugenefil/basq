@@ -10,17 +10,11 @@
 # binary
 
 ## input:
-# insert
 # update
 # delete
-# non-ascii input
-# string
-# numeric
-# date
 # empty date
 # null
 # binary
-# parameterized insert
 # parameterized update
 # parameterized delete
 
@@ -230,18 +224,19 @@ def test_typed_header():
 
 
 @pytest.mark.parametrize(
-    'value,type',
+    'testid,value,type',
     [
-        ('\r\n', 'string'),
-        ('1.0', 'number'),
+        ('parameterized-string', '\r\n', 'string'),
+        ('parameterized-non-ascii', 'Привет, мир!', 'string'),
+        ('parameterized-number', '1.0', 'number'),
         # ('1', 'integer') is skipped due to the bug in vfp oledb
         # provider (see comments in adosql input type converters), but
         # this case is covered (e.g. in test to insert rows
         # parameterized)
-        ('1999-12-31', 'date')
+        ('parameterized-date', '1999-12-31', 'date')
     ]
 )
-def test_pass_value_parameterized(value, type):
+def test_pass_value_parameterized(testid, value, type):
     """Test passing each type of value parameterized to ADO.
 
     If we know that passing each type parameterized to ADO works fine,
