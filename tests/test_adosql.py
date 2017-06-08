@@ -1,7 +1,8 @@
 ## output:
 # parameterized select with ?
-# parameterized select with named params
-# parameterized select with no input rows
+# parameterized select: named params
+# parameterized select: no input rows
+# parameterized select: superfluous spaces in header
 # empty date
 # null
 # binary
@@ -37,6 +38,7 @@ import shutil
 import pytest
 
 
+# must be relative, otherwise tmpdb fixture will break
 DBPATH = 'vfpdb/db.dbc'
 
 
@@ -88,7 +90,8 @@ def execsql(sql, input_rows=None, typed_header=False):
     """Exec sql with adosql and return rows from output tsv if any.
 
     If passed, input_rows must a be a list of rows of input values
-    (including header) for parameterized query.
+    (including header) for parameterized query. This list is converted
+    to tsv and piped to adosql following sql.
 
     Returned rows are a list of lists including header. If typed_header
     is True, adosql must return typed header: each column will contain
@@ -231,13 +234,46 @@ def test_retrieve_value_parameterized():
     ])[1] == ['\r\n', '\'"']
 
 
-def test_insert_row(tmpdir):
-    origdbdir, dbname = path.split(DBPATH)
-    dbdir = tmpdir.join(origdbdir)
-    shutil.copytree(origdbdir, dbdir)
-    os.chdir(tmpdir)
+@pytest.fixture
+def tmpdb(tmpdir):
+    """Create temp database.
 
+    Copy test database to temp directory and chdir to it. chdir back on
+    teardown.
+
+    We have to chdir and keep DBPATH relative, because adosql is a
+    Windows program, but when testing in Cygwin tmpdir will be a unix
+    path, which will break adosql if absolute path is given to it.
+    """
+    origcwd = os.getcwd()
+
+    origdbdir, dbname = path.split(DBPATH)
+    tmpdbdir = tmpdir.join(origdbdir)
+    shutil.copytree(origdbdir, tmpdbdir)
+    os.chdir(tmpdir)
+    yield None
+
+    os.chdir(origcwd)
+
+
+def test_insert_row(tmpdb):
     execsql("insert into person values (1, 'john')")
     assert execsql("select * from person")[1:] == [
         ['1', 'john']
     ]
+
+
+def test_insert_row_parameterized(tmpdb):
+    execsql(
+        "insert into person values (?, ?)",
+        input_rows=[
+            ['id integer', 'name string'],
+            ['1', 'john'],
+            ['2', 'bill']
+        ]
+    )
+    assert execsql("select * from person")[1:] == [
+        ['1', 'john'],
+        ['2', 'bill']
+    ]
+

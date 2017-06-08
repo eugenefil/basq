@@ -71,9 +71,34 @@ def execsql(cursor, cmd, input_rows=None):
 
 
 def readrows(file):
-    r = csv.reader(file, delimiter='\t')
-    next(r) # skip header
-    return r
+    reader = csv.reader(file, delimiter='\t')
+
+    header = next(reader)
+    header = [
+        dict(zip(
+            ('name', 'type'),
+            # assume string type if missing
+            col.split(' ') + ['string']
+        ))
+        for col in header
+    ]
+
+    idfunc = lambda x: x
+    converter_funcs = {
+        'string': idfunc,
+        'number': float,
+        # VFP-SPECIFIC: Pass integers to vfp provider as floats! There
+        # seems to be a bug in vfp oledb provider which results in
+        # integers passed incorrectly. With python adodbapi integers
+        # get passed as zeroes. Passing integers in vbscript with
+        # ADODB.Command I got: 1130168319 for passed -1, 1130102784
+        # for 0, 1130102785 for 1 and so on. In contrast passing
+        # integers to Microsoft ACE provider works fine.
+        'integer': float
+    }
+    converters = [converter_funcs[col['type']] for col in header]
+
+    return [map(lambda f, v: f(v), converters, row) for row in reader]
 
 
 def writerows(file, rows, cols, typed_header=False):
@@ -97,8 +122,8 @@ def main(connstr, parameterized=False, typed_header=False):
     conn.variantConversions[adodbapi.ado_consts.adNumeric] = (
         adodbapi.apibase.cvtFloat
     )
-    # fixed-width char columns in FoxPro are returned with trailing
-    # spaces, so right-trimming is necessary
+    # VFP-SPECIFIC: fixed-width char columns in FoxPro are returned
+    # with trailing spaces, so right-trimming is necessary
     conn.variantConversions[adodbapi.ado_consts.adChar] = cvtRTrim
     # convert pure date to date, not datetime
     conn.variantConversions[adodbapi.ado_consts.adDBDate] = cvtDate(
