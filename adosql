@@ -52,8 +52,11 @@ def ado_type_to_general(column_info):
     raise TypeError('ADO type %s cannot be converted to general type' % adotype)
 
 
-def execsql(cursor, cmd):
-    cursor.execute(cmd)
+def execsql(cursor, cmd, input_rows=None):
+    if input_rows:
+        cursor.executemany(cmd, input_rows)
+    else:
+        cursor.execute(cmd)
 
     columns = []
     for i, desc in enumerate(cursor.description):
@@ -63,7 +66,13 @@ def execsql(cursor, cmd):
     return cursor, columns
 
 
-def output_tsv(file, rows, cols, typed_header=False):
+def readrows(file):
+    r = csv.reader(file, delimiter='\t')
+    next(r) # skip header
+    return r
+
+
+def writerows(file, rows, cols, typed_header=False):
     writer = csv.writer(file, delimiter='\t')
 
     colnamefunc = {
@@ -75,7 +84,7 @@ def output_tsv(file, rows, cols, typed_header=False):
     writer.writerows(rows)
 
 
-def main(connstr, typed_header=False):
+def main(connstr, parameterized=False, typed_header=False):
     conn = adodbapi.connect(connstr)
 
     # set proper connection-wide db-to-python type conversions
@@ -94,10 +103,11 @@ def main(connstr, typed_header=False):
 
     cur = conn.cursor()
     for sqlcmd in sys.stdin:
-        results = execsql(cur, sqlcmd)
+        input_rows = readrows(sys.stdin) if parameterized else None
+        results = execsql(cur, sqlcmd, input_rows)
         if results:
             rows, cols = results
-            output_tsv(sys.stdout, rows, cols, typed_header)
+            writerows(sys.stdout, rows, cols, typed_header)
 
     cur.close()
     conn.close()
@@ -123,6 +133,11 @@ def mssqlconnstr(args):
 
 def parse_args():
     parser = argparse.ArgumentParser()
+    parser.add_argument(
+        '-params',
+        action='store_true',
+        help='execute parameterized query. Input values are read as tsv that follows right after the line of query on stdin'
+    )
     parser.add_argument(
         '-typed-header',
         action='store_true',
@@ -174,9 +189,21 @@ def parse_args():
 
 
 def setup():
-    # Redefine stdout to not translate newlines, because csv writer writes \r\n
-    # (as per rfc 4180). If translated on Windows, \r\n becomes \r\r\n. Also
-    # always use utf-8.
+    # Redefine stdin to not translate newlines. Otherwise when reading
+    # csv field containing \r\n on Windows it gets translated to \n,
+    # i.e. data gets corrupted. Always use utf-8.
+    sys.stdin = open(
+        sys.stdin.fileno(),
+        mode=sys.stdin.mode,
+        encoding='utf-8',
+        errors=sys.stdin.errors,
+        newline='',
+        closefd=False
+    )
+    # Redefine stdout to not translate newlines. csv module (as per
+    # rfc 4180) writes \r\n. Otherwise when on Windows, \n is
+    # translated to \r\n, so original \r\n becomes \r\r\n. Always use
+    # utf-8.
     sys.stdout = open(
         sys.stdout.fileno(),
         mode=sys.stdout.mode,
@@ -190,4 +217,8 @@ def setup():
 if __name__ == '__main__':
     args = parse_args()
     setup()
-    main(args.getconnstr(args), args.typed_header)
+    main(
+        args.getconnstr(args),
+        parameterized=args.params,
+        typed_header=args.typed_header
+    )

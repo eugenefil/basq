@@ -1,5 +1,7 @@
 ## output:
-# parameterized select
+# parameterized select with ?
+# parameterized select with named params
+# parameterized select with no input rows
 # empty date
 # null
 # binary
@@ -78,8 +80,11 @@ def run(args, input):
     return out, err
 
 
-def execsql(sql, typed_header=False):
+def execsql(sql, input_rows=None, typed_header=False):
     """Exec sql with adosql and return rows parsed from output tsv.
+
+    If passed, input_rows must a be a list of rows of input values
+    (including header) for parameterized query.
 
     Returned rows are a list of lists including header. If typed_header
     is True, adosql must return typed header: each column will contain
@@ -87,10 +92,18 @@ def execsql(sql, typed_header=False):
     """
     cmd = (
         ['adosql'] +
+        (['-params'] if input_rows else []) +
         (['-typed-header'] if typed_header else []) +
         ['vfp', 'vfpdb/db.dbc']
     )
-    out, err = run(cmd, sql)
+
+    input = sql
+    if input_rows:
+        f = StringIO()
+        csv.writer(f, delimiter='\t').writerows(input_rows)
+        input += '\n' + f.getvalue()
+
+    out, err = run(cmd, input)
     return list(csv.reader(StringIO(out), delimiter='\t'))
 
 
@@ -111,14 +124,20 @@ def selectsql(*column_defs, rowcount=1):
     )
 
 
-def select(*column_defs, rowcount=1, typed_header=False):
+def select(
+        *column_defs,
+        input_rows=None,
+        rowcount=1,
+        typed_header=False
+    ):
     """Return rowcount rows of columns specified with column_defs.
 
-    First row is header. See selectsql() and execsql() for further
-    details.
+    First returned row is a header. See selectsql() and execsql() for
+    further details.
     """
     return execsql(
         selectsql(*column_defs, rowcount=rowcount),
+        input_rows=input_rows,
         typed_header=typed_header
     )
 
@@ -199,3 +218,10 @@ def test_typed_header():
         'weight number',
         'birth date'
     ]
+
+
+def test_retrieve_value_parameterized():
+    assert select('?', '?', input_rows=[
+        ['c1', 'c2'],
+        ['\r\n', '\'"']
+    ])[1] == ['\r\n', '\'"']
