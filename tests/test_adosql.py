@@ -199,7 +199,7 @@ def selectvalue(expr):
         ('sample-date', 'date(1999, 12, 31)', '1999-12-31')
     ]
 )        
-def test_retrieve_value(testid, expr, expected_value):
+def test_select_value(testid, expr, expected_value):
     """Test how values are returned from database.
 
     expr must be an sql expression which is substituted into SELECT
@@ -212,12 +212,7 @@ def test_retrieve_value(testid, expr, expected_value):
     assert selectvalue(expr) == expected_value
 
 
-def test_retrieve_no_rows():
-    "Test case when no rows were returned, only header."
-    assert select('n', rowcount=0) == [['n']]
-
-
-def test_retrieve_many_rows_many_cols():
+def test_select():
     assert select('n', 'n + 1 as next', rowcount=2) == [
         ['n', 'next'],
         ['0', '1.0'], # n is integer, but n + 1 becomes numeric
@@ -225,7 +220,11 @@ def test_retrieve_many_rows_many_cols():
     ]
 
 
-def test_typed_header():
+def test_select_with_no_rows():
+    assert select('n', rowcount=0) == [['n']]
+
+
+def test_select_with_typed_header():
     assert select(
         "'john' as name",
         'cast(40 as int) as age',
@@ -240,26 +239,26 @@ def test_typed_header():
     ]
 
 
-@pytest.mark.parametrize(
+data_to_test_parametrized_queries = (
     'testid,value,type',
     [
-        ('parameterized-string', '\r\n', 'string'),
-        ('parameterized-non-ascii', 'Привет, мир!', 'string'),
-        ('parameterized-number', '1.0', 'number'),
-        # ('1', 'integer') is skipped due to the bug in vfp oledb
-        # provider (see comments in adosql input type converters), but
-        # this case is covered (e.g. in test to insert rows
-        # parameterized)
-        ('parameterized-date', '1999-12-31', 'date')
+        ('string', '\r\n', 'string'),
+        ('non-ascii', 'Привет, мир!', 'string'),
+        ('number', '1.0', 'number'),
+        # ('integer', '1', 'integer') skipped, see tests for integer
+        ('date', '1999-12-31', 'date')
     ]
 )
-def test_pass_value_parameterized(testid, value, type):
-    """Test passing each type of value parameterized to ADO.
+
+@pytest.mark.parametrize(*data_to_test_parametrized_queries)
+def test_pass_value_to_parameterized_query(testid, value, type):
+    """Test passing each type of value to parameterized query.
 
     If we know that passing each type parameterized to ADO works fine,
-    there is no need to test each type with each type of sql query. For
-    example, if passing dates parameterized works with SELECT, then
-    passing dates works and it will work with INSERT, UPDATE, DELETE.
+    there is no need to test each value type with each type of sql
+    query. For example, if passing dates parameterized works with
+    SELECT, then passing dates works and it will work with INSERT,
+    UPDATE, DELETE.
     """
     # input and output rows could be made totally the same, but that's
     # kinda suspicious, so let's change column names
@@ -276,6 +275,10 @@ def test_pass_value_parameterized(testid, value, type):
 
 
 def test_named_parameterized_query():
+    """Test named parameters mechanism.
+
+    If it works fine with SELECT, it works fine with others.
+    """
     # note the order of columns in output is inverted compared to
     # input
     assert select(':name', ':score', input_rows=[OrderedDict((
@@ -305,14 +308,12 @@ def tmpdb(tmpdir):
     os.chdir(origcwd)
 
 
-def test_insert_row(tmpdb):
+def test_insert(tmpdb):
     execsql("insert into person values (1, 'john')")
-    assert execsql("select * from person")[1:] == [
-        ['1', 'john']
-    ]
+    assert execsql("select * from person")[1:] == [['1', 'john']]
 
 
-def test_insert_rows_parameterized(tmpdb):
+def test_parameterized_insert(tmpdb):
     execsql(
         "insert into person values (?, ?)",
         input_rows=[
