@@ -71,23 +71,12 @@ def execsql(cursor, cmd, input_rows=None):
     return cursor, columns
 
 
-def readrows(file):
-    reader = csv.reader(file, delimiter='\t')
+def todate(s):
+    return datetime.datetime.strptime(s, '%Y-%m-%d').date()
 
-    header = next(reader)
-    header = [
-        dict(zip(
-            ('name', 'type'),
-            # assume string type if missing
-            col.split(' ') + ['string']
-        ))
-        for col in header
-    ]
-
+def type_parsers():
     idfunc = lambda x: x
-    def todate(s):
-        return datetime.datetime.strptime(s, '%Y-%m-%d').date()
-    converter_funcs = {
+    return {
         'string': idfunc,
         'number': float,
         # VFP-SPECIFIC: Pass integers to vfp provider as floats! There
@@ -100,9 +89,49 @@ def readrows(file):
         'integer': float,
         'date': todate
     }
-    converters = [converter_funcs[col['type']] for col in header]
 
-    return [map(lambda f, v: f(v), converters, row) for row in reader]
+
+def tolist(row, colnames): return row
+def todict(row, colnames): return dict(zip(colnames, row))
+
+def rowfunc(paramstyle):
+    return {
+        'qmark': tolist,
+        'named': todict
+    }.get(paramstyle, tolist)
+
+
+def readrows(file, type_parsers, rowfunc=tolist):
+    """Parse input tsv rows from file and return rows of values.
+
+    Parse each value in a input row from its string representation via
+    corresponding parser from type_parsers. type_parsers is a dict,
+    where types are keys and their parsers are values.
+
+    Convert row of values to output row format (list or dict) with
+    rowfunc.
+    """
+    reader = csv.reader(file, delimiter='\t')
+
+    header = next(reader)
+    header = [
+        dict(zip(
+            ('name', 'type'),
+            # assume string type if missing
+            col.split(' ') + ['string']
+        ))
+        for col in header
+    ]
+
+    colparsers = [type_parsers[col['type']] for col in header]
+    colnames = [col['name'] for col in header]
+    return [
+        rowfunc(
+            map(lambda f, v: f(v), colparsers, row),
+            colnames
+        )
+        for row in reader
+    ]
 
 
 def writerows(file, rows, cols, typed_header=False):
@@ -117,7 +146,7 @@ def writerows(file, rows, cols, typed_header=False):
     writer.writerows(rows)
 
 
-def main(connstr, parameterized=False, typed_header=False):
+def main(connstr, paramstyle=None, typed_header=False):
     conn = adodbapi.connect(connstr)
 
     # set proper connection-wide db-to-python type conversions
@@ -135,8 +164,19 @@ def main(connstr, parameterized=False, typed_header=False):
     )
 
     cur = conn.cursor()
+
+    if paramstyle:
+        cur.paramstyle = paramstyle
+
     for sqlcmd in sys.stdin:
-        input_rows = readrows(sys.stdin) if parameterized else None
+        input_rows = None
+        if paramstyle:
+            input_rows = readrows(
+                sys.stdin,
+                type_parsers(),
+                rowfunc(paramstyle)
+            )
+
         results = execsql(cur, sqlcmd, input_rows)
         if results:
             rows, cols = results
@@ -168,9 +208,9 @@ def mssqlconnstr(args):
 def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        '-params',
-        action='store_true',
-        help='execute parameterized query. Input values are read as tsv that follows right after the line of query on stdin'
+        '-paramstyle',
+        choices=('qmark', 'named'),
+        help='execute parameterized query. Input values are read as tsv that follows right after the line of query on stdin. Param style in query is one of: qmark (e.g. where id = ?) or named (e.g. where id = :id). With latter column id must be in tsv. Default style: qmark'
     )
     parser.add_argument(
         '-typed-header',
@@ -253,6 +293,6 @@ if __name__ == '__main__':
     setup()
     main(
         args.getconnstr(args),
-        parameterized=args.params,
+        paramstyle=args.paramstyle,
         typed_header=args.typed_header
     )

@@ -1,18 +1,15 @@
 ## output:
-# parameterized select with ?
 # parameterized select: named params
 # parameterized select: no input rows
 # parameterized select: no types means string
 # parameterized select: superfluous spaces in header
 # parameterized select: unknown input type
-# empty date
 # null
 # binary
 
 ## input:
 # update
 # delete
-# empty date
 # null
 # binary
 # parameterized update
@@ -30,12 +27,15 @@ import os.path as path
 import csv
 from io import StringIO
 import shutil
+from collections import OrderedDict
 
 import pytest
 
 
 # must be relative, otherwise tmpdb fixture will break
 DBPATH = 'vfpdb/db.dbc'
+
+CSVSEP = '\t'
 
 
 # add path to adosql to PATH
@@ -85,29 +85,46 @@ def run(args, input):
 def execsql(sql, input_rows=None, typed_header=False):
     """Exec sql with adosql and return rows from output tsv if any.
 
-    If passed, input_rows must a be a list of rows of input values
-    (including header) for parameterized query. This list is converted
-    to tsv and piped to adosql following sql.
+    If passed, input_rows must a be a list of rows of input values for
+    parameterized query. This list is converted to tsv and piped to
+    adosql right after sql. If row of values is a dict, the query is a
+    named parameterized query and no header row is needed. Otherwise
+    it's a positiotal (question mark) query and first row must be a
+    header.
 
     Returned rows are a list of lists including header. If typed_header
     is True, adosql must return typed header: each column will contain
     its type delimited from name by space.
     """
+    csvargs = {'delimiter': CSVSEP}
+
+    paramstyle_arg = []
+    input = sql
+    if input_rows:
+        paramstyle_arg = ['-paramstyle']
+        f = StringIO()
+        row1 = input_rows[0]
+        try:
+            colnames = row1.keys()
+        except AttributeError:
+            paramstyle_arg += ['qmark']
+            writer = csv.writer(f, **csvargs)
+        else:
+            paramstyle_arg += ['named']
+            writer = csv.DictWriter(f, fieldnames=colnames, **csvargs)
+            writer.writeheader()
+        writer.writerows(input_rows)
+        input += '\n' + f.getvalue()
+
     cmd = (
         ['adosql'] +
-        (['-params'] if input_rows else []) +
+        paramstyle_arg +
         (['-typed-header'] if typed_header else []) +
         ['vfp', DBPATH]
     )
 
-    input = sql
-    if input_rows:
-        f = StringIO()
-        csv.writer(f, delimiter='\t').writerows(input_rows)
-        input += '\n' + f.getvalue()
-
     out, err = run(cmd, input)
-    return list(csv.reader(StringIO(out), delimiter='\t'))
+    return list(csv.reader(StringIO(out), **csvargs))
 
 
 def selectsql(*column_defs, rowcount=1):
@@ -163,7 +180,7 @@ def selectvalue(expr):
         ('no-trailing-spaces', "cast('test' as char(100))", 'test'),
         ('non-ascii-string', "'Привет, мир!'", 'Привет, мир!'),
         ('special-chars-in-string', "'1' + chr(13) + chr(10) + '2'", '1\r\n2'),
-        ('tabs-in-string', "'1\t2'", '1\t2'),
+        ('csv-sep-in-string', "'1%s2'" % CSVSEP, '1%s2' % CSVSEP),
         ('doublequotes-in-string', "'Say \"hi\"'", 'Say "hi"'),
 
         # numeric type
@@ -258,6 +275,14 @@ def test_pass_value_parameterized(testid, value, type):
     ) == rows('out')
 
 
+def test_named_parameterized_query():
+    # note the order of columns in output is inverted compared to
+    # input
+    assert select(':name', ':score', input_rows=[OrderedDict((
+        ('score number', '5.0'), ('name string', 'john')
+    ))])[1:] == [['john', '5.0']]
+
+
 @pytest.fixture
 def tmpdb(tmpdir):
     """Create temp database.
@@ -300,4 +325,3 @@ def test_insert_rows_parameterized(tmpdb):
         ['1', 'john'],
         ['2', 'bill']
     ]
-
