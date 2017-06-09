@@ -54,7 +54,7 @@ def ado_type_to_general(column_info):
 
 
 def execsql(cursor, cmd, input_rows=None):
-    if input_rows:
+    if not input_rows is None:
         cursor.executemany(cmd, input_rows)
     else:
         cursor.execute(cmd)

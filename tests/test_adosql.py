@@ -1,24 +1,21 @@
 ## output:
-# parameterized select: named params
-# parameterized select: no input rows
-# parameterized select: no types means string
-# parameterized select: superfluous spaces in header
-# parameterized select: unknown input type
+# parameterized query: superfluous spaces in header
+# parameterized query: unknown input type
 # null
 # binary
 
 ## input:
 # update
 # delete
-# null
-# binary
 # parameterized update
 # parameterized delete
+# null
+# binary
 
-# multiple queries
+# multiple queries on stdin
 # transaction rollback on error
 
-# multiple parameterized queries
+# multiple parameterized queries on stdin
 # multiple parameterized queries (empty strings in one-column data)
 
 import subprocess
@@ -296,6 +293,10 @@ def test_parameterized_select():
         ['name string', 'score number'],
         ['john', '5.0']
     ])[1:] == [['john', '5.0']]
+
+
+def test_parameterized_select_with_no_input_values():
+    assert select('?', input_rows=[['name string']]) == []
 
 
 @pytest.mark.parametrize(*data_to_test_parametrized_queries)
