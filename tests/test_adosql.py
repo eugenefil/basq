@@ -274,6 +274,59 @@ def test_pass_value_to_parameterized_query(testid, value, type):
     ) == rows('out')
 
 
+def test_pass_integer_to_parameterized_query():
+    # Due to the bug in vfp oledb provider (see comments in adosql
+    # input type parsers), ints cannot be passed to parameterized
+    # queries. Instead they are converted to floats on input.
+    assert select(
+        '? as out',
+        typed_header=True,
+        input_rows=[
+            ['in integer'],
+            ['1']
+        ]
+    ) == [
+        ['out number'],
+        ['1.0']
+    ]
+
+
+def test_parameterized_select():
+    assert select('?', '?', input_rows=[
+        ['name string', 'score number'],
+        ['john', '5.0']
+    ])[1:] == [['john', '5.0']]
+
+
+@pytest.mark.parametrize(*data_to_test_parametrized_queries)
+def test_pass_value_to_named_parameterized_query(testid, value, type):
+    """Test passing each type of value to named parameterized query.
+
+    Logic is the same as in test for positional parameterized query.
+    """
+    assert select(
+        ':in as out',
+        typed_header=True,
+        input_rows=[
+        {'in ' + type: value}
+    ]) == [
+        ['out ' + type],
+        [value]
+    ]
+
+
+def test_pass_integer_to_named_parameterized_query():
+    # see similar test for positional parameterized query for details
+    assert select(
+        ':in as out',
+        typed_header=True,
+        input_rows=[{'in integer': '1'}]
+    ) == [
+        ['out number'],
+        ['1.0']
+    ]
+
+
 def test_named_parameterized_query():
     """Test named parameters mechanism.
 
