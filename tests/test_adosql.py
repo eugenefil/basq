@@ -237,19 +237,31 @@ def test_select_with_typed_header():
 
 
 data_to_test_parametrized_queries = (
-    'testid,value,type',
+    'testid,in_value,in_type,out_value,out_type',
     [
-        ('string', '\r\n', 'string'),
-        ('non-ascii', 'Привет, мир!', 'string'),
-        ('number', '1.0', 'number'),
-        # ('integer', '1', 'integer') skipped, see tests for integer
-        ('date', '1999-12-31', 'date')
+        ('string', '\r\n', 'string', None, None),
+        ('non-ascii', 'Привет, мир!', 'string', None, None),
+        ('number', '1.0', 'number', None, None),
+        # Due to the bug in vfp oledb provider (see comments in adosql
+        # input type parsers), ints cannot be passed to parameterized
+        # queries. Instead they are converted to floats on input.
+        ('integer', '1', 'integer', '1.0', 'number'),
+        ('date', '1999-12-31', 'date', None, None)
     ]
 )
 
 @pytest.mark.parametrize(*data_to_test_parametrized_queries)
-def test_pass_value_to_parameterized_query(testid, value, type):
+def test_pass_value_to_parameterized_query(
+        testid,
+        in_value,
+        in_type,
+        out_value,
+        out_type
+    ):
     """Test passing each type of value to parameterized query.
+
+    If out_value is None, it is assumed the same as in_value. Same for
+    out_type.
 
     If we know that passing each type parameterized to ADO works fine,
     there is no need to test each value type with each type of sql
@@ -257,34 +269,15 @@ def test_pass_value_to_parameterized_query(testid, value, type):
     SELECT, then passing dates works and it will work with INSERT,
     UPDATE, DELETE.
     """
-    # input and output rows could be made totally the same, but that's
-    # kinda suspicious, so let's change column names
-    def rows(colname):
-        return [
-            [colname + ' ' + type],
-            [value]
-        ]
-    assert select(
-        '? as out',
-        typed_header=True,
-        input_rows=rows('in')
-    ) == rows('out')
+    out_value = in_value if out_value is None else out_value
+    out_type = in_type if out_type is None else out_type
 
-
-def test_pass_integer_to_parameterized_query():
-    # Due to the bug in vfp oledb provider (see comments in adosql
-    # input type parsers), ints cannot be passed to parameterized
-    # queries. Instead they are converted to floats on input.
-    assert select(
-        '? as out',
-        typed_header=True,
-        input_rows=[
-            ['in integer'],
-            ['1']
-        ]
-    ) == [
-        ['out number'],
-        ['1.0']
+    assert select('? as out', typed_header=True, input_rows=[
+        ['in ' + in_type],
+        [in_value]
+    ]) == [
+        ['out ' + out_type],
+        [out_value]
     ]
 
 
@@ -300,31 +293,25 @@ def test_parameterized_select_with_no_input_values():
 
 
 @pytest.mark.parametrize(*data_to_test_parametrized_queries)
-def test_pass_value_to_named_parameterized_query(testid, value, type):
+def test_pass_value_to_named_parameterized_query(
+        testid,
+        in_value,
+        in_type,
+        out_value,
+        out_type
+    ):
     """Test passing each type of value to named parameterized query.
 
     Logic is the same as in test for positional parameterized query.
     """
-    assert select(
-        ':in as out',
-        typed_header=True,
-        input_rows=[
-        {'in ' + type: value}
+    out_value = in_value if out_value is None else out_value
+    out_type = in_type if out_type is None else out_type
+
+    assert select(':in as out', typed_header=True, input_rows=[
+        {'in ' + in_type: in_value}
     ]) == [
-        ['out ' + type],
-        [value]
-    ]
-
-
-def test_pass_integer_to_named_parameterized_query():
-    # see similar test for positional parameterized query for details
-    assert select(
-        ':in as out',
-        typed_header=True,
-        input_rows=[{'in integer': '1'}]
-    ) == [
-        ['out number'],
-        ['1.0']
+        ['out ' + out_type],
+        [out_value]
     ]
 
 
