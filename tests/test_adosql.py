@@ -236,8 +236,8 @@ def test_select_with_typed_header():
     ]
 
 
-data_to_test_parametrized_queries = (
-    'testid,in_value,in_type,out_value,out_type',
+@pytest.mark.parametrize(
+    'value_id,in_value,in_type,out_value,out_type',
     [
         ('string', '\r\n', 'string', None, None),
         ('non-ascii', 'Привет, мир!', 'string', None, None),
@@ -249,33 +249,52 @@ data_to_test_parametrized_queries = (
         ('date', '1999-12-31', 'date', None, None)
     ]
 )
-
-@pytest.mark.parametrize(*data_to_test_parametrized_queries)
+@pytest.mark.parametrize(
+    'paramstyle,param,rowfunc',
+    [
+        (
+            'positional',
+            '?',
+            lambda hdr_row, val_row, : [hdr_row, val_row]
+        ),
+        (
+            'named',
+            ':in',
+            lambda hdr_row, val_row: [dict(zip(hdr_row, val_row))]
+        )
+    ]
+)
 def test_pass_value_to_parameterized_query(
-        testid,
+        value_id,
         in_value,
         in_type,
         out_value,
-        out_type
+        out_type,
+        paramstyle,
+        param,
+        rowfunc
     ):
-    """Test passing each type of value to parameterized query.
+    """Test passing each value type with each parameter style.
+
+    The value is passed to SELECT, then output is read. If output value
+    and type are the same as input, then value was passed correctly.
+
+    If we know that passing each value type parameterized works fine,
+    there is no need to test each value type with each kind of sql
+    query. For example, if passing dates parameterized works with
+    SELECT, then passing dates works in general and it will work with
+    INSERT, UPDATE and DELETE.
 
     If out_value is None, it is assumed the same as in_value. Same for
     out_type.
-
-    If we know that passing each type parameterized to ADO works fine,
-    there is no need to test each value type with each type of sql
-    query. For example, if passing dates parameterized works with
-    SELECT, then passing dates works and it will work with INSERT,
-    UPDATE, DELETE.
     """
     out_value = in_value if out_value is None else out_value
     out_type = in_type if out_type is None else out_type
 
-    assert select('? as out', typed_header=True, input_rows=[
+    assert select(param + ' as out', typed_header=True, input_rows=rowfunc(
         ['in ' + in_type],
         [in_value]
-    ]) == [
+    )) == [
         ['out ' + out_type],
         [out_value]
     ]
@@ -290,29 +309,6 @@ def test_parameterized_select():
 
 def test_parameterized_select_with_no_input_values():
     assert select('?', input_rows=[['name string']]) == []
-
-
-@pytest.mark.parametrize(*data_to_test_parametrized_queries)
-def test_pass_value_to_named_parameterized_query(
-        testid,
-        in_value,
-        in_type,
-        out_value,
-        out_type
-    ):
-    """Test passing each type of value to named parameterized query.
-
-    Logic is the same as in test for positional parameterized query.
-    """
-    out_value = in_value if out_value is None else out_value
-    out_type = in_type if out_type is None else out_type
-
-    assert select(':in as out', typed_header=True, input_rows=[
-        {'in ' + in_type: in_value}
-    ]) == [
-        ['out ' + out_type],
-        [out_value]
-    ]
 
 
 def test_named_parameterized_query():
