@@ -1,22 +1,18 @@
-## output:
-# parameterized query: superfluous spaces in header
-# parameterized query: unknown input type
-# null
-# binary
-
-## input:
+# TODO:
 # update
 # delete
 # parameterized update
 # parameterized delete
-# null
-# binary
-
 # multiple queries on stdin
-# transaction rollback on error
-
+# multiple queries: transaction rollback on error
 # multiple parameterized queries on stdin
-# multiple parameterized queries (empty strings in one-column data)
+# multiple parameterized queries: empty string in one-column tsv
+# parameterized query: superfluous spaces in header
+# parameterized query: unknown input type
+# select null
+# select binary
+# parameterized query: input null
+# parameterized query: input binary
 
 import subprocess
 import os
@@ -84,10 +80,9 @@ def execsql(sql, input_rows=None, typed_header=False):
 
     If passed, input_rows must a be a list of rows of input values for
     parameterized query. This list is converted to tsv and piped to
-    adosql right after sql. If row of values is a dict, the query is a
-    named parameterized query and no header row is needed. Otherwise
-    it's a positiotal (question mark) query and first row must be a
-    header.
+    adosql right after sql. If row of values is a dict, the parameter
+    style is named and no header row is needed. Otherwise it's
+    positiotal (question mark) style and first row must be a header.
 
     Returned rows are a list of lists including header. If typed_header
     is True, adosql must return typed header: each column will contain
@@ -246,7 +241,9 @@ def test_select_with_typed_header():
         # input type parsers), ints cannot be passed to parameterized
         # queries. Instead they are converted to floats on input.
         ('integer', '1', 'integer', '1.0', 'number'),
-        ('date', '1999-12-31', 'date', None, None)
+        ('date', '1999-12-31', 'date', None, None),
+        # input value with no type is assumed to be string
+        ('no-type-is-string', '1', '', None, 'string'),
     ]
 )
 @pytest.mark.parametrize(
@@ -292,7 +289,7 @@ def test_pass_value_to_parameterized_query(
     out_type = in_type if out_type is None else out_type
 
     assert select(param + ' as out', typed_header=True, input_rows=rowfunc(
-        ['in ' + in_type],
+        [('in ' + in_type).rstrip()],
         [in_value]
     )) == [
         ['out ' + out_type],
@@ -311,7 +308,7 @@ def test_parameterized_select_with_no_input_values():
     assert select('?', input_rows=[['name string']]) == []
 
 
-def test_named_parameterized_query():
+def test_parameterized_query_with_named_params():
     """Test named parameters mechanism.
 
     If it works fine with SELECT, it works fine with others.

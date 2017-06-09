@@ -106,7 +106,8 @@ def readrows(file, type_parsers, rowfunc=tolist):
 
     Parse each value in a input row from its string representation via
     corresponding parser from type_parsers. type_parsers is a dict,
-    where types are keys and their parsers are values.
+    where types are keys and their parsers are values. If column misses
+    type, string is assumed.
 
     Convert row of values to output row format (list or dict) with
     rowfunc.
