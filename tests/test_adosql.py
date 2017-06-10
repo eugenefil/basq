@@ -360,3 +360,26 @@ def test_parameterized_insert(tmpdb):
         ['1', 'john'],
         ['2', 'bill']
     ]
+
+
+def test_update(tmpdb):
+    execsql("insert into person values (1, 'john')")
+    execsql("update person set id = 2, name = 'bill'")
+    assert execsql("select * from person")[1:] == [['2', 'bill']]
+
+
+def test_parameterized_update(tmpdb):
+    execsql("insert into person values (1, 'john')")
+    execsql("insert into person values (2, 'bill')")
+    execsql(
+        "update person set name = ? where id = ?",
+        input_rows=[
+            ['name string', 'id integer'],
+            ['johnny', '1'],
+            ['billy', '2']
+        ]
+    )
+    assert execsql("select * from person")[1:] == [
+        ['1', 'johnny'],
+        ['2', 'billy']
+    ]
