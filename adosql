@@ -169,7 +169,11 @@ def main(connstr, paramstyle=None, typed_header=False):
     if paramstyle:
         cur.paramstyle = paramstyle
 
-    for sqlcmd in sys.stdin:
+    for line in sys.stdin:
+        sqlcmd = line.strip()
+        if not sqlcmd:
+            continue
+
         input_rows = None
         if paramstyle:
             input_rows = readrows(

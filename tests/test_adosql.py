@@ -403,6 +403,19 @@ def test_many_input_queries(tmpdb):
     assert execsql("select * from person")[1:] == [['1', 'bill']]
 
 
+@pytest.mark.parametrize(
+    'testid,line',
+    [
+        ('empty', ''),
+        ('cr', '\r'),
+        ('spaces', ' '),
+        ('tabs', '\t')
+    ]
+)
+def test_ignore_whitespace_input_lines(testid, line):
+    assert execsql(line + '\n') == []
+
+
 def test_input_queries_done_in_transaction(tmpdb):
     with pytest.raises(RunError) as excinfo:
         execsql(
