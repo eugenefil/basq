@@ -126,13 +126,18 @@ def readrows(file, type_parsers, rowfunc=tolist):
 
     colparsers = [type_parsers[col['type']] for col in header]
     colnames = [col['name'] for col in header]
-    return [
-        rowfunc(
+
+    rows = []
+    for row in reader:
+        # stop reading on empty line
+        if row == []:
+            break
+
+        rows.append(rowfunc(
             map(lambda f, v: f(v), colparsers, row),
             colnames
-        )
-        for row in reader
-    ]
+        ))
+    return rows
 
 
 def writerows(file, rows, cols, typed_header=False):

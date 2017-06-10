@@ -1,6 +1,5 @@
 # TODO describe test database
 # TODO tests:
-# multiple parameterized queries on stdin
 # multiple parameterized queries: empty string in one-column tsv
 # parameterized query: superfluous spaces in header
 # parameterized query: unknown input type
@@ -73,11 +72,17 @@ def run(args, input):
 def execsql(sql, input_rows=None, typed_header=False):
     """Exec sql with adosql and return rows from output tsv if any.
 
+    sql is a query to execute.
+
     If passed, input_rows must a be a list of rows of input values for
     parameterized query. This list is converted to tsv and piped to
     adosql right after sql. If row of values is a dict, the parameter
     style is named and no header row is needed. Otherwise it's
     positiotal (question mark) style and first row must be a header.
+
+    sql may be a list of queries. In this case if not None, input_rows
+    must be a list of lists of rows one for each parameterized query in
+    sql. Parameter styles must be the same for all queries in sql.
 
     Returned rows are a list of lists including header. If typed_header
     is True, adosql must return typed header: each column will contain
@@ -85,23 +90,40 @@ def execsql(sql, input_rows=None, typed_header=False):
     """
     csvargs = {'delimiter': CSVSEP}
 
+    # if sql is a string, make it and input_rows a one-item list
+    if hasattr(sql, 'upper'):
+        sql = [sql]
+        input_rows = [input_rows]
+    # if sql is already a list, but input_rows is None, make
+    # input_rows a corresponding list of Nones
+    else:
+        input_rows = input_rows or [None] * len(sql)
+
     paramstyle_arg = []
-    input = sql
-    if input_rows:
-        paramstyle_arg = ['-paramstyle']
-        f = StringIO()
-        row1 = input_rows[0]
-        try:
-            colnames = row1.keys()
-        except AttributeError:
-            paramstyle_arg += ['qmark']
-            writer = csv.writer(f, **csvargs)
-        else:
-            paramstyle_arg += ['named']
-            writer = csv.DictWriter(f, fieldnames=colnames, **csvargs)
-            writer.writeheader()
-        writer.writerows(input_rows)
-        input += '\n' + f.getvalue()
+    input_chunks = []
+    for query, rows in zip(sql, input_rows):
+        input_chunk = query + '\n'
+        if rows:
+            paramstyle_arg = ['-paramstyle']
+            f = StringIO()
+            row1 = rows[0]
+            try:
+                colnames = row1.keys()
+            except AttributeError:
+                paramstyle_arg += ['qmark']
+                writer = csv.writer(f, **csvargs)
+            else:
+                paramstyle_arg += ['named']
+                writer = csv.DictWriter(f, colnames, **csvargs)
+                writer.writeheader()
+            writer.writerows(rows)
+            input_chunk += f.getvalue()
+            
+        input_chunks.append(input_chunk)
+
+    # add empty line separators between parameterized queries
+    sep = '\n' if paramstyle_arg else ''
+    input = sep.join(input_chunks)
 
     cmd = (
         ['adosql'] +
@@ -396,10 +418,10 @@ def test_parameterized_delete(tmpdb):
 
 
 def test_many_input_queries(tmpdb):
-    execsql(
-        "insert into person values (1, 'john')" + '\n' +
+    execsql([
+        "insert into person values (1, 'john')",
         "update person set name = 'bill' where id = 1"
-    )
+    ])
     assert execsql("select * from person")[1:] == [['1', 'bill']]
 
 
@@ -418,12 +440,32 @@ def test_ignore_whitespace_input_lines(testid, line):
 
 def test_input_queries_done_in_transaction(tmpdb):
     with pytest.raises(RunError) as excinfo:
-        execsql(
+        execsql([
             # first query is correct
-            "insert into person values (1, 'john')" + '\n' +
+            "insert into person values (1, 'john')",
             # second query leads to db engine error
             "update"
-        )
+        ])
         assert excinfo.value.returncode == 1
 
     assert execsql("select * from person")[1:] == []
+
+
+def test_many_input_parameterized_queries(tmpdb):
+    execsql(
+        [
+            "insert into person values (?, ?)",
+            "update person set name = ? where id = ?"
+        ],        
+        input_rows=[
+            [
+                ['id integer', 'name string'],
+                ['1', 'john']
+            ],
+            [
+                ['name string', 'id integer'],
+                ['bill', '1']
+            ]
+        ]
+    )
+    assert execsql("select * from person")[1:] == [['1', 'bill']]
