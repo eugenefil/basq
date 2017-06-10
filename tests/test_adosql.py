@@ -1,7 +1,5 @@
 # TODO describe test database
 # TODO tests:
-# multiple queries on stdin
-# multiple queries: transaction rollback on error
 # multiple parameterized queries on stdin
 # multiple parameterized queries: empty string in one-column tsv
 # parameterized query: superfluous spaces in header
@@ -395,3 +393,24 @@ def test_parameterized_delete(tmpdb):
         ]
     )
     assert execsql("select * from guy")[1:] == []
+
+
+def test_many_input_queries(tmpdb):
+    execsql(
+        "insert into person values (1, 'john')" + '\n' +
+        "update person set name = 'bill' where id = 1"
+    )
+    assert execsql("select * from person")[1:] == [['1', 'bill']]
+
+
+def test_input_queries_done_in_transaction(tmpdb):
+    with pytest.raises(RunError) as excinfo:
+        execsql(
+            # first query is correct
+            "insert into person values (1, 'john')" + '\n' +
+            # second query leads to db engine error
+            "update"
+        )
+        assert excinfo.value.returncode == 1
+
+    assert execsql("select * from person")[1:] == []
