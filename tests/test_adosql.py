@@ -1,4 +1,5 @@
-# TODO:
+# TODO describe test database
+# TODO tests:
 # multiple queries on stdin
 # multiple queries: transaction rollback on error
 # multiple parameterized queries on stdin
@@ -360,43 +361,37 @@ def test_parameterized_insert(tmpdb):
 
 
 def test_update(tmpdb):
-    execsql("insert into person values (1, 'john')")
-    execsql("update person set id = 2, name = 'bill'")
-    assert execsql("select * from person")[1:] == [['2', 'bill']]
+    execsql("update guy set name = 'ed' where id = 2")
+    assert execsql("select name from guy where id = 2")[1] == ['ed']
 
 
 def test_parameterized_update(tmpdb):
-    execsql("insert into person values (1, 'john')")
-    execsql("insert into person values (2, 'bill')")
     execsql(
-        "update person set name = ? where id = ?",
+        "update guy set name = ? where id = ?",
         input_rows=[
             ['name string', 'id integer'],
             ['johnny', '1'],
             ['billy', '2']
         ]
     )
-    assert execsql("select * from person")[1:] == [
+    assert execsql("select * from guy")[1:] == [
         ['1', 'johnny'],
         ['2', 'billy']
     ]
 
 
 def test_delete(tmpdb):
-    execsql("insert into person values (1, 'john')")
-    execsql("delete from person where id = 1")
-    assert execsql("select * from person")[1:] == []
+    execsql("delete from guy where id = 1")
+    assert execsql("select * from guy where id = 1")[1:] == []
 
 
 def test_parameterized_delete(tmpdb):
-    execsql("insert into person values (1, 'john')")
-    execsql("insert into person values (2, 'bill')")
     execsql(
-        "delete from person where id = ? and name = ?",
+        "delete from guy where id = ? and name = ?",
         input_rows=[
             ['id integer', 'name string'],
             ['1', 'john'],
             ['2', 'bill']
         ]
     )
-    assert execsql("select * from person")[1:] == []
+    assert execsql("select * from guy")[1:] == []
