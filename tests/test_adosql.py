@@ -1,8 +1,4 @@
 # TODO:
-# update
-# delete
-# parameterized update
-# parameterized delete
 # multiple queries on stdin
 # multiple queries: transaction rollback on error
 # multiple parameterized queries on stdin
@@ -343,6 +339,7 @@ def tmpdb(tmpdir):
 
 
 def test_insert(tmpdb):
+    # table person is initially empty
     execsql("insert into person values (1, 'john')")
     assert execsql("select * from person")[1:] == [['1', 'john']]
 
@@ -383,3 +380,23 @@ def test_parameterized_update(tmpdb):
         ['1', 'johnny'],
         ['2', 'billy']
     ]
+
+
+def test_delete(tmpdb):
+    execsql("insert into person values (1, 'john')")
+    execsql("delete from person where id = 1")
+    assert execsql("select * from person")[1:] == []
+
+
+def test_parameterized_delete(tmpdb):
+    execsql("insert into person values (1, 'john')")
+    execsql("insert into person values (2, 'bill')")
+    execsql(
+        "delete from person where id = ? and name = ?",
+        input_rows=[
+            ['id integer', 'name string'],
+            ['1', 'john'],
+            ['2', 'bill']
+        ]
+    )
+    assert execsql("select * from person")[1:] == []
