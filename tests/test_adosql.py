@@ -1,7 +1,5 @@
 # TODO describe test database
 # TODO tests:
-# select logical
-# parameterized query: input ? into logical
 # multiple parameterized queries: empty string in one-column tsv
 # parameterized query: superfluous spaces in header
 # parameterized query: unknown input type
@@ -209,7 +207,11 @@ def selectvalue(expr):
         ('negative-integer', 'cast(-100 as integer)', '-100'),
 
         # dates
-        ('sample-date', 'date(1999, 12, 31)', '1999-12-31')
+        ('sample-date', 'date(1999, 12, 31)', '1999-12-31'),
+
+        # booleans
+        ('boolean-true', '.t.', '1'),
+        ('boolean-false', '.f.', '0')
     ]
 )        
 def test_select_value(testid, expr, expected_value):
@@ -244,13 +246,15 @@ def test_select_with_typed_header():
         '73.5 as weight',
         'date(1980, 1, 1) as birth',
         "cast('hacker' as memo) occupation",
+        '.t. as cool',
         typed_header=True
     )[0] == [
         'name string',
         'age integer',
         'weight number',
         'birth date',
-        'occupation string'
+        'occupation string',
+        'cool boolean'
     ]
 
 
@@ -267,6 +271,8 @@ def test_select_with_typed_header():
         ('date', '1999-12-31', 'date', None, None),
         # input value with no type is assumed to be string
         ('no-type-is-string', '1', '', None, 'string'),
+        ('boolean-true', '1', 'boolean', None, None),
+        ('boolean-false', '0', 'boolean', None, None)
     ]
 )
 @pytest.mark.parametrize(

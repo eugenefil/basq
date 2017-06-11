@@ -44,6 +44,9 @@ def ado_type_to_general(column_info):
     adotype = column_info[COLUMN_TYPE]
     if adotype == adodbapi.STRING:
         return 'string'
+    # compare before int, since bool also compares true to int types
+    elif adotype == adodbapi.ado_consts.adBoolean:
+        return 'boolean'
     elif adotype == ADO_INTEGER:
         return 'integer'
     elif adotype == adodbapi.NUMBER:
@@ -87,7 +90,8 @@ def type_parsers():
         # for 0, 1130102785 for 1 and so on. In contrast passing
         # integers to Microsoft ACE provider works fine.
         'integer': float,
-        'date': todate
+        'date': todate,
+        'boolean': lambda x: bool(int(x))
     }
 
 
