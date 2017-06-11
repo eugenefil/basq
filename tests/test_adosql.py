@@ -1,12 +1,14 @@
 # TODO describe test database
 # TODO tests:
+# select logical
+# parameterized query: input ? into logical
 # multiple parameterized queries: empty string in one-column tsv
 # parameterized query: superfluous spaces in header
 # parameterized query: unknown input type
 # select null
-# select binary
+# select memo (binary)
 # parameterized query: input null
-# parameterized query: input binary
+# parameterized query: input into memo (binary)
 
 import subprocess
 import os
@@ -191,6 +193,8 @@ def selectvalue(expr):
         ('special-chars-in-string', "'1' + chr(13) + chr(10) + '2'", '1\r\n2'),
         ('csv-sep-in-string', "'1%s2'" % CSVSEP, '1%s2' % CSVSEP),
         ('doublequotes-in-string', "'Say \"hi\"'", 'Say "hi"'),
+        # note: passing long strings gives driver error
+        ('memo', "cast('test' as memo)", 'test'),
 
         # numeric type
         ('sample-numeric', '123.456', '123.456'),
@@ -239,12 +243,14 @@ def test_select_with_typed_header():
         'cast(40 as int) as age',
         '73.5 as weight',
         'date(1980, 1, 1) as birth',
+        "cast('hacker' as memo) occupation",
         typed_header=True
     )[0] == [
         'name string',
         'age integer',
         'weight number',
-        'birth date'
+        'birth date',
+        'occupation string'
     ]
 
 
@@ -311,6 +317,27 @@ def test_pass_value_to_parameterized_query(
     )) == [
         ['out ' + out_type],
         [out_value]
+    ]
+
+
+def test_pass_long_string_to_parameterized_query():
+    """Test passing long strings for memo columns.
+
+    Long strings cannot be passed inline in the query, only via
+    parameters.
+    """
+    longstring = 'a' * 1024
+    assert select(
+        # cast to memo, 'string is too long' error otherwise
+        'cast(? as memo) as out',
+        typed_header=True,
+        input_rows=[
+            ['in string'],
+            [longstring]
+        ]
+    ) == [
+        ['out string'],
+        [longstring]
     ]
 
 
