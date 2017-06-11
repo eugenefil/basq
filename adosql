@@ -244,34 +244,34 @@ def parse_args():
     )
     vfpparser.set_defaults(getconnstr=vfpconnstr)
 
-    mssqlparser = subparsers.add_parser(
-        'mssql',
-        description='Windows Authentication is used by default',
-        help='Microsoft SQL Server'
-    )
-    mssqlparser.add_argument(
-        '-server',
-        default='localhost',
-        help='server ip/name. Default: localhost',
-        metavar='SRV'
-    )
-    mssqlparser.add_argument(
-        '-database',
-        default='',
-        help='initial database. Default: server settings',
-        metavar='DB'
-    )
-    mssqlparser.add_argument(
-        '-user',
-        help='user name for SQL Server Authentication'
-    )
-    mssqlparser.add_argument(
-        '-password',
-        default='',
-        help='password for SQL Server Authentication',
-        metavar='PASS'
-    )
-    mssqlparser.set_defaults(getconnstr=mssqlconnstr)
+    # mssqlparser = subparsers.add_parser(
+    #     'mssql',
+    #     description='Windows Authentication is used by default',
+    #     help='Microsoft SQL Server'
+    # )
+    # mssqlparser.add_argument(
+    #     '-server',
+    #     default='localhost',
+    #     help='server ip/name. Default: localhost',
+    #     metavar='SRV'
+    # )
+    # mssqlparser.add_argument(
+    #     '-database',
+    #     default='',
+    #     help='initial database. Default: server settings',
+    #     metavar='DB'
+    # )
+    # mssqlparser.add_argument(
+    #     '-user',
+    #     help='user name for SQL Server Authentication'
+    # )
+    # mssqlparser.add_argument(
+    #     '-password',
+    #     default='',
+    #     help='password for SQL Server Authentication',
+    #     metavar='PASS'
+    # )
+    # mssqlparser.set_defaults(getconnstr=mssqlconnstr)
     
     return parser.parse_args()
 
