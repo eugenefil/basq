@@ -479,7 +479,7 @@ def test_input_queries_done_in_transaction(tmpdb):
             # second query leads to db engine error
             "update"
         ])
-        assert excinfo.value.returncode == 1
+    assert excinfo.value.returncode == 1
 
     assert execsql("select * from person")[1:] == []
 
