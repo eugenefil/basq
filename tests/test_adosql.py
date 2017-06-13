@@ -22,8 +22,6 @@ import pytest
 # must be relative, otherwise tmpdb fixture will break
 DBPATH = 'vfpdb/db.dbc'
 
-CSVSEP = ','
-
 
 # add path to adosql to PATH
 os.environ['PATH'] = (
@@ -69,7 +67,7 @@ def run(args, input):
     return out, err
 
 
-def execsql(sql, input_rows=None, typed_header=False):
+def execsql(sql, input_rows=None, typed_header=False, delimiter=None):
     """Exec sql with adosql and return rows from output csv if any.
 
     sql is a query to execute.
@@ -87,8 +85,11 @@ def execsql(sql, input_rows=None, typed_header=False):
     Returned rows are a list of lists including header. If typed_header
     is True, adosql must return typed header: each column will contain
     its type delimited from name by space.
+
+    If not None, use delimiter as CSV delimiter.
     """
-    csvargs = {'delimiter': CSVSEP}
+    csvargs = {'delimiter': delimiter} if delimiter else {}
+    delimiter_arg = ['-t'] if delimiter == '\t' else []
 
     # if sql is a string, make it and input_rows a one-item list
     if hasattr(sql, 'upper'):
@@ -129,6 +130,7 @@ def execsql(sql, input_rows=None, typed_header=False):
         ['adosql'] +
         paramstyle_arg +
         (['-typed-header'] if typed_header else []) +
+        delimiter_arg +
         ['vfp', DBPATH]
     )
 
@@ -157,7 +159,8 @@ def select(
         *column_defs,
         input_rows=None,
         rowcount=1,
-        typed_header=False
+        typed_header=False,
+        delimiter=None
     ):
     """Return rowcount rows of columns specified with column_defs.
 
@@ -167,7 +170,8 @@ def select(
     return execsql(
         selectsql(*column_defs, rowcount=rowcount),
         input_rows=input_rows,
-        typed_header=typed_header
+        typed_header=typed_header,
+        delimiter=delimiter
     )
 
 
@@ -189,7 +193,7 @@ def selectvalue(expr):
         ('no-trailing-spaces', "cast('test' as char(100))", 'test'),
         ('non-ascii-string', "'Привет, мир!'", 'Привет, мир!'),
         ('special-chars-in-string', "'1' + chr(13) + chr(10) + '2'", '1\r\n2'),
-        ('csv-sep-in-string', "'1%s2'" % CSVSEP, '1%s2' % CSVSEP),
+        ('csv-delimiter-in-string', "'1,2'", '1,2'),
         ('doublequotes-in-string', "'Say \"hi\"'", 'Say "hi"'),
         # note: passing long strings gives driver error
         ('memo', "cast('test' as memo)", 'test'),
@@ -502,3 +506,15 @@ def test_many_input_parameterized_queries(tmpdb):
         ]
     )
     assert execsql("select * from person")[1:] == [['1', 'bill']]
+
+
+def test_tsv_input_output():
+    rows = [
+        ['id', 'name'],
+        ['1', 'john']
+    ]
+    assert select(
+        '? as id', '? as name',
+        input_rows=rows,
+        delimiter='\t'
+    ) == rows

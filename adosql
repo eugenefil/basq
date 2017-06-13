@@ -105,8 +105,8 @@ def rowfunc(paramstyle):
     }.get(paramstyle, tolist)
 
 
-def readrows(file, type_parsers, rowfunc=tolist):
-    """Parse input csv rows from file and return rows of values.
+def readrows(file, type_parsers, rowfunc=tolist, delimiter=None):
+    """Parse input CSV rows from file and return rows of values.
 
     Parse each value in a input row from its string representation via
     corresponding parser from type_parsers. type_parsers is a dict,
@@ -115,8 +115,11 @@ def readrows(file, type_parsers, rowfunc=tolist):
 
     Convert row of values to output row format (list or dict) with
     rowfunc.
+
+    If not None, use delimiter as CSV delimiter.
     """
-    reader = csv.reader(file)
+    delim = {'delimiter': delimiter} if delimiter else {}
+    reader = csv.reader(file, **delim)
 
     header = next(reader)
     header = [
@@ -144,8 +147,16 @@ def readrows(file, type_parsers, rowfunc=tolist):
     return rows
 
 
-def writerows(file, rows, cols, typed_header=False):
-    writer = csv.writer(file)
+def writerows(file, rows, cols, typed_header=False, delimiter=None):
+    """Write output rows to file in CSV format.
+
+    If typed_header is True, output column type after column name
+    delimited with space.
+
+    If not None, use delimiter as CSV delimiter.
+    """
+    delim = {'delimiter': delimiter} if delimiter else {}
+    writer = csv.writer(file, **delim)
 
     colnamefunc = {
         False: lambda col: col['name'],
@@ -156,7 +167,7 @@ def writerows(file, rows, cols, typed_header=False):
     writer.writerows(rows)
 
 
-def main(connstr, paramstyle=None, typed_header=False):
+def main(connstr, paramstyle=None, typed_header=False, delimiter=None):
     conn = adodbapi.connect(connstr)
 
     # set proper connection-wide db-to-python type conversions
@@ -188,13 +199,20 @@ def main(connstr, paramstyle=None, typed_header=False):
             input_rows = readrows(
                 sys.stdin,
                 type_parsers(),
-                rowfunc(paramstyle)
+                rowfunc(paramstyle),
+                delimiter=delimiter
             )
 
         results = execsql(cur, sqlcmd, input_rows)
         if results:
             rows, cols = results
-            writerows(sys.stdout, rows, cols, typed_header)
+            writerows(
+                sys.stdout,
+                rows,
+                cols,
+                typed_header=typed_header,
+                delimiter=delimiter
+            )
 
     cur.close()
     conn.commit()
@@ -224,13 +242,19 @@ def parse_args():
     parser.add_argument(
         '-paramstyle',
         choices=('qmark', 'named'),
-        help='execute parameterized query. Input values are read as csv that follows right after the line of query on stdin. Param style in query is one of: qmark (e.g. where id = ?) or named (e.g. where id = :id). With latter column id must be in csv. Default style: qmark'
+        help='execute parameterized query. Input values are read as CSV (with typed header assumed) that follows right after the line of query on stdin. Param style in query is one of: qmark (e.g. where id = ?) or named (e.g. where id = :id). With latter column id must be in CSV. Default style: qmark'
     )
     parser.add_argument(
         '-typed-header',
         action='store_true',
         help='output typed header. Each column will contain its type delimited from name by space'
     )
+    parser.add_argument(
+        '-t',
+        action='store_true',
+        help='use tab as CSV delimiter'
+    )
+    parser.set_defaults(delimiter=None)
 
     subparsers = parser.add_subparsers(title='commands')
 
@@ -272,13 +296,17 @@ def parse_args():
     #     metavar='PASS'
     # )
     # mssqlparser.set_defaults(getconnstr=mssqlconnstr)
-    
-    return parser.parse_args()
+
+    args = parser.parse_args()
+    if args.t:
+        args.delimiter = '\t'
+
+    return args
 
 
 def setup():
     # Redefine stdin to not translate newlines. Otherwise when reading
-    # csv field containing \r\n on Windows it gets translated to \n,
+    # CSV field containing \r\n on Windows it gets translated to \n,
     # i.e. data gets corrupted. Always use utf-8.
     sys.stdin = open(
         sys.stdin.fileno(),
@@ -288,7 +316,7 @@ def setup():
         newline='',
         closefd=False
     )
-    # Redefine stdout to not translate newlines. csv module (as per
+    # Redefine stdout to not translate newlines. CSV module (as per
     # rfc 4180) writes \r\n. Otherwise when on Windows, \n is
     # translated to \r\n, so original \r\n becomes \r\r\n. Always use
     # utf-8.
@@ -308,5 +336,6 @@ if __name__ == '__main__':
     main(
         args.getconnstr(args),
         paramstyle=args.paramstyle,
-        typed_header=args.typed_header
+        typed_header=args.typed_header,
+        delimiter=args.delimiter
     )
