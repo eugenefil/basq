@@ -1,6 +1,6 @@
 # TODO describe test database
 # TODO tests:
-# multiple parameterized queries: empty string in one-column tsv
+# multiple parameterized queries: empty string in one-column csv
 # parameterized query: superfluous spaces in header
 # parameterized query: unknown input type
 # select null
@@ -22,7 +22,7 @@ import pytest
 # must be relative, otherwise tmpdb fixture will break
 DBPATH = 'vfpdb/db.dbc'
 
-CSVSEP = '\t'
+CSVSEP = ','
 
 
 # add path to adosql to PATH
@@ -70,12 +70,12 @@ def run(args, input):
 
 
 def execsql(sql, input_rows=None, typed_header=False):
-    """Exec sql with adosql and return rows from output tsv if any.
+    """Exec sql with adosql and return rows from output csv if any.
 
     sql is a query to execute.
 
     If passed, input_rows must a be a list of rows of input values for
-    parameterized query. This list is converted to tsv and piped to
+    parameterized query. This list is converted to csv and piped to
     adosql right after sql. If row of values is a dict, the parameter
     style is named and no header row is needed. Otherwise it's
     positiotal (question mark) style and first row must be a header.

@@ -106,7 +106,7 @@ def rowfunc(paramstyle):
 
 
 def readrows(file, type_parsers, rowfunc=tolist):
-    """Parse input tsv rows from file and return rows of values.
+    """Parse input csv rows from file and return rows of values.
 
     Parse each value in a input row from its string representation via
     corresponding parser from type_parsers. type_parsers is a dict,
@@ -116,7 +116,7 @@ def readrows(file, type_parsers, rowfunc=tolist):
     Convert row of values to output row format (list or dict) with
     rowfunc.
     """
-    reader = csv.reader(file, delimiter='\t')
+    reader = csv.reader(file)
 
     header = next(reader)
     header = [
@@ -145,7 +145,7 @@ def readrows(file, type_parsers, rowfunc=tolist):
 
 
 def writerows(file, rows, cols, typed_header=False):
-    writer = csv.writer(file, delimiter='\t')
+    writer = csv.writer(file)
 
     colnamefunc = {
         False: lambda col: col['name'],
@@ -224,7 +224,7 @@ def parse_args():
     parser.add_argument(
         '-paramstyle',
         choices=('qmark', 'named'),
-        help='execute parameterized query. Input values are read as tsv that follows right after the line of query on stdin. Param style in query is one of: qmark (e.g. where id = ?) or named (e.g. where id = :id). With latter column id must be in tsv. Default style: qmark'
+        help='execute parameterized query. Input values are read as csv that follows right after the line of query on stdin. Param style in query is one of: qmark (e.g. where id = ?) or named (e.g. where id = :id). With latter column id must be in csv. Default style: qmark'
     )
     parser.add_argument(
         '-typed-header',
