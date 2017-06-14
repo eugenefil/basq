@@ -167,8 +167,14 @@ def writerows(file, rows, cols, typed_header=False, delimiter=None):
     writer.writerows(rows)
 
 
-def main(connstr, paramstyle=None, typed_header=False, delimiter=None):
-    conn = adodbapi.connect(connstr)
+def main(
+        connstr,
+        paramstyle=None,
+        typed_header=False,
+        delimiter=None,
+        autocommit=False
+    ):
+    conn = adodbapi.connect(connstr, autocommit=autocommit)
 
     # set proper connection-wide db-to-python type conversions
     conn.variantConversions = adodbapi.apibase.variantConversions
@@ -215,7 +221,8 @@ def main(connstr, paramstyle=None, typed_header=False, delimiter=None):
             )
 
     cur.close()
-    conn.commit()
+    if not autocommit:
+        conn.commit()
     conn.close()
 
 
@@ -255,6 +262,12 @@ def parse_args():
         help='use tab as CSV delimiter'
     )
     parser.set_defaults(delimiter=None)
+
+    parser.add_argument(
+        '-autocommit',
+        action='store_true',
+        help='commit after each SQL statement. By default, SQL statements are executed inside a transaction. E.g. FoxPro DDL statements work only in this mode'
+    )
 
     subparsers = parser.add_subparsers(title='commands')
 
@@ -337,5 +350,6 @@ if __name__ == '__main__':
         args.getconnstr(args),
         paramstyle=args.paramstyle,
         typed_header=args.typed_header,
-        delimiter=args.delimiter
+        delimiter=args.delimiter,
+        autocommit=args.autocommit
     )

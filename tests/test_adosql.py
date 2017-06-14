@@ -67,7 +67,13 @@ def run(args, input):
     return out, err
 
 
-def execsql(sql, input_rows=None, typed_header=False, delimiter=None):
+def execsql(
+        sql,
+        input_rows=None,
+        typed_header=False,
+        delimiter=None,
+        autocommit=False
+    ):
     """Exec sql with adosql and return rows from output csv if any.
 
     sql is a query to execute.
@@ -87,6 +93,8 @@ def execsql(sql, input_rows=None, typed_header=False, delimiter=None):
     its type delimited from name by space.
 
     If not None, use delimiter as CSV delimiter.
+
+    If autocommit is True, adosql executes in autocommit mode.
     """
     csvargs = {'delimiter': delimiter} if delimiter else {}
     delimiter_arg = ['-t'] if delimiter == '\t' else []
@@ -131,6 +139,7 @@ def execsql(sql, input_rows=None, typed_header=False, delimiter=None):
         paramstyle_arg +
         (['-typed-header'] if typed_header else []) +
         delimiter_arg +
+        (['-autocommit'] if autocommit else []) +
         ['vfp', DBPATH]
     )
 
@@ -518,3 +527,13 @@ def test_tsv_input_output():
         input_rows=rows,
         delimiter='\t'
     ) == rows
+
+
+def test_ddl(tmpdb):
+    execsql(
+        'create table item (id integer, name char(10))',
+        # FoxPro DDL statements work only in autocommit mode
+        autocommit=True
+    )
+    execsql("insert into item values (1, 'box')")
+    assert execsql("select * from item")[1:] == [['1', 'box']]
