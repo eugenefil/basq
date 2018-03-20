@@ -238,17 +238,17 @@ def mssqlconnstr(args):
 def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        '-paramstyle',
+        '--paramstyle',
         choices=('qmark', 'named'),
         help='execute parameterized query. Input values are read as CSV (with typed header assumed) that follows right after the line of query on stdin. Param style in query is one of: qmark (e.g. where id = ?) or named (e.g. where id = :id). With latter column id must be in CSV. Default style: qmark'
     )
     parser.add_argument(
-        '-typed-header',
+        '--typed-header',
         action='store_true',
         help='output typed header. Each column will contain its type delimited from name by space'
     )
     parser.add_argument(
-        '-autocommit',
+        '--autocommit',
         action='store_true',
         help='commit after each SQL statement. By default, SQL statements are executed inside a transaction. E.g. FoxPro DDL statements work only in this mode'
     )

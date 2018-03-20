@@ -107,7 +107,7 @@ def execsql(
     for query, rows in zip(sql, input_rows):
         input_chunk = query + '\n'
         if rows:
-            paramstyle_arg = ['-paramstyle']
+            paramstyle_arg = ['--paramstyle']
             f = StringIO()
             row1 = rows[0]
             try:
@@ -131,8 +131,8 @@ def execsql(
     cmd = (
         ['basq'] +
         paramstyle_arg +
-        (['-typed-header'] if typed_header else []) +
-        (['-autocommit'] if autocommit else []) +
+        (['--typed-header'] if typed_header else []) +
+        (['--autocommit'] if autocommit else []) +
         ['vfp', DBPATH]
     )
 
