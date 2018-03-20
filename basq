@@ -12,8 +12,6 @@ COLUMN_NAME = 0
 COLUMN_TYPE = 1
 COLUMN_SCALE = 5
 
-CONN_STR_VFP = u'Provider=VFPOLEDB.1;Data Source={datasource};Mode=Share Deny None;Extended Properties="";User ID="";Mask Password=False;Cache Authentication=False;Encrypt Password=False;Collating Sequence=MACHINE;DSN="";DELETED=True;CODEPAGE=1251;MVCOUNT=16384;ENGINEBEHAVIOR=90;TABLEVALIDATE=3;REFRESH=5;VARCHARMAPPING=False;ANSI=True;REPROCESS=5'
-
 CONN_STR_MSSQL = u'Provider=SQLNCLI10;Server={server};Database={database};{auth}'
 CONN_STR_MSSQL_SRVAUTH = u'Uid={user};Pwd={password}'
 CONN_STR_MSSQL_WINAUTH = u'Integrated Security=SSPI'
@@ -162,27 +160,11 @@ def writerows(file, rows, cols, typed_header=False):
 
 
 def main(
-        connstr,
+        conn,
         paramstyle=None,
         typed_header=False,
         autocommit=False
     ):
-    conn = adodbapi.connect(connstr, autocommit=autocommit)
-
-    # set proper connection-wide db-to-python type conversions
-    conn.variantConversions = adodbapi.apibase.variantConversions
-    # convert numeric to float
-    conn.variantConversions[adodbapi.ado_consts.adNumeric] = (
-        adodbapi.apibase.cvtFloat
-    )
-    # VFP-SPECIFIC: fixed-width char columns in FoxPro are returned
-    # with trailing spaces, so right-trimming is necessary
-    conn.variantConversions[adodbapi.ado_consts.adChar] = cvtRTrim
-    # convert pure date to date, not datetime
-    conn.variantConversions[adodbapi.ado_consts.adDBDate] = cvtDate(
-        conn.variantConversions[adodbapi.ado_consts.adDBDate]
-    )
-
     cur = conn.cursor()
 
     if paramstyle:
@@ -217,8 +199,26 @@ def main(
     conn.close()
 
 
-def vfpconnstr(args):
-    return CONN_STR_VFP.format(datasource=args.database)
+def vfpconn(args, autocommit=False):
+    connstr = u'Provider=VFPOLEDB.1;Data Source={datasource};Mode=Share Deny None;Extended Properties="";User ID="";Mask Password=False;Cache Authentication=False;Encrypt Password=False;Collating Sequence=MACHINE;DSN="";DELETED=True;CODEPAGE=1251;MVCOUNT=16384;ENGINEBEHAVIOR=90;TABLEVALIDATE=3;REFRESH=5;VARCHARMAPPING=False;ANSI=True;REPROCESS=5'
+    connstr = connstr.format(datasource=args.database)
+    conn = adodbapi.connect(connstr, autocommit=autocommit)
+
+    # set proper connection-wide db-to-python type conversions
+    conn.variantConversions = adodbapi.apibase.variantConversions
+    # convert numeric to float
+    conn.variantConversions[adodbapi.ado_consts.adNumeric] = (
+        adodbapi.apibase.cvtFloat
+    )
+    # fixed-width char columns in FoxPro are returned with trailing
+    # spaces, so right-trimming is necessary
+    conn.variantConversions[adodbapi.ado_consts.adChar] = cvtRTrim
+    # convert pure date to date, not datetime
+    conn.variantConversions[adodbapi.ado_consts.adDBDate] = cvtDate(
+        conn.variantConversions[adodbapi.ado_consts.adDBDate]
+    )
+
+    return conn
 
 
 def mssqlconnstr(args):
@@ -263,7 +263,7 @@ def parse_args():
         'database',
         help='path to .dbc database file'
     )
-    vfpparser.set_defaults(getconnstr=vfpconnstr)
+    vfpparser.set_defaults(getconn=vfpconn)
 
     # mssqlparser = subparsers.add_parser(
     #     'mssql',
@@ -328,7 +328,7 @@ if __name__ == '__main__':
     args = parse_args()
     setup()
     main(
-        args.getconnstr(args),
+        args.getconn(args, autocommit=args.autocommit),
         paramstyle=args.paramstyle,
         typed_header=args.typed_header,
         autocommit=args.autocommit
