@@ -17,44 +17,7 @@ CONN_STR_MSSQL_SRVAUTH = u'Uid={user};Pwd={password}'
 CONN_STR_MSSQL_WINAUTH = u'Integrated Security=SSPI'
 
 
-def cvtDate(default_conv):
-    """Return datetime.date from COM date.
-
-    Default adodbapi converter converts COM date (which is number of
-    days since 1899-12-30) to datetime.datetime. This converter extracts
-    date from that datetime.
-    """
-    def todate(com_date):
-        return default_conv(com_date).date()
-    return todate
-
-
-def cvtRTrim(s):
-    return s.rstrip(' ')
-
-
-ADO_INTEGER = adodbapi.apibase.DBAPITypeObject(
-    adodbapi.apibase.adoIntegerTypes +
-    adodbapi.apibase.adoLongTypes
-)
-
-def ado_type_to_general(column_info):
-    adotype = column_info[COLUMN_TYPE]
-    if adotype == adodbapi.STRING:
-        return 'string'
-    # compare before int, since bool also compares true to int types
-    elif adotype == adodbapi.ado_consts.adBoolean:
-        return 'boolean'
-    elif adotype == ADO_INTEGER:
-        return 'integer'
-    elif adotype == adodbapi.NUMBER:
-        return 'number'
-    elif adotype == adodbapi.DATETIME:
-        return 'date'
-    raise TypeError('ADO type %s cannot be converted to general type' % adotype)
-
-
-def execsql(cursor, cmd, input_rows=None):
+def execsql(cursor, cmd, input_rows=None, typeconv=None):
     if not input_rows is None:
         cursor.executemany(cmd, input_rows)
     else:
@@ -66,7 +29,7 @@ def execsql(cursor, cmd, input_rows=None):
 
     columns = []
     for i, desc in enumerate(cursor.description):
-        coltype = ado_type_to_general(desc)
+        coltype = typeconv(desc[COLUMN_TYPE])
         columns.append({'name': desc[COLUMN_NAME], 'type': coltype})
 
     return cursor, columns
@@ -163,7 +126,8 @@ def main(
         conn,
         paramstyle=None,
         typed_header=False,
-        autocommit=False
+        autocommit=False,
+        typeconv=None
     ):
     cur = conn.cursor()
 
@@ -183,7 +147,12 @@ def main(
                 rowfunc(paramstyle)
             )
 
-        results = execsql(cur, sqlcmd, input_rows)
+        results = execsql(
+            cur,
+            sqlcmd,
+            input_rows=input_rows,
+            typeconv=typeconv
+        )
         if results:
             rows, cols = results
             writerows(
@@ -199,10 +168,26 @@ def main(
     conn.close()
 
 
-def vfpconn(args, autocommit=False):
+def cvtDate(default_conv):
+    """Return datetime.date from COM date.
+
+    Default adodbapi converter converts COM date (which is number of
+    days since 1899-12-30) to datetime.datetime. This converter extracts
+    date from that datetime.
+    """
+    def todate(com_date):
+        return default_conv(com_date).date()
+    return todate
+
+
+def cvtRTrim(s):
+    return s.rstrip(' ')
+
+
+def vfpconn(args):
     connstr = u'Provider=VFPOLEDB.1;Data Source={datasource};Mode=Share Deny None;Extended Properties="";User ID="";Mask Password=False;Cache Authentication=False;Encrypt Password=False;Collating Sequence=MACHINE;DSN="";DELETED=True;CODEPAGE=1251;MVCOUNT=16384;ENGINEBEHAVIOR=90;TABLEVALIDATE=3;REFRESH=5;VARCHARMAPPING=False;ANSI=True;REPROCESS=5'
     connstr = connstr.format(datasource=args.database)
-    conn = adodbapi.connect(connstr, autocommit=autocommit)
+    conn = adodbapi.connect(connstr, autocommit=args.autocommit)
 
     # set proper connection-wide db-to-python type conversions
     conn.variantConversions = adodbapi.apibase.variantConversions
@@ -219,6 +204,33 @@ def vfpconn(args, autocommit=False):
     )
 
     return conn
+
+
+ADO_INTEGER = adodbapi.apibase.DBAPITypeObject(
+    adodbapi.apibase.adoIntegerTypes +
+    adodbapi.apibase.adoLongTypes
+)
+
+def ado_type_to_general(adotype):
+    if adotype == adodbapi.STRING:
+        return 'string'
+    # compare before int, since bool also compares true to int types
+    elif adotype == adodbapi.ado_consts.adBoolean:
+        return 'boolean'
+    elif adotype == ADO_INTEGER:
+        return 'integer'
+    elif adotype == adodbapi.NUMBER:
+        return 'number'
+    elif adotype == adodbapi.DATETIME:
+        return 'date'
+    raise TypeError('ADO type %s cannot be converted to general type' % adotype)
+
+
+def vfpvals(*args, **kwargs):
+    return {
+        'conn': vfpconn(*args, **kwargs),
+        'typeconv': ado_type_to_general
+    }
 
 
 def mssqlconnstr(args):
@@ -263,7 +275,7 @@ def parse_args():
         'database',
         help='path to .dbc database file'
     )
-    vfpparser.set_defaults(getconn=vfpconn)
+    vfpparser.set_defaults(getdbvals=vfpvals)
 
     # mssqlparser = subparsers.add_parser(
     #     'mssql',
@@ -327,9 +339,11 @@ def setup():
 if __name__ == '__main__':
     args = parse_args()
     setup()
+    dbvals = args.getdbvals(args)
     main(
-        args.getconn(args, autocommit=args.autocommit),
+        dbvals['conn'],
         paramstyle=args.paramstyle,
         typed_header=args.typed_header,
-        autocommit=args.autocommit
+        autocommit=args.autocommit,
+        typeconv=dbvals['typeconv']
     )
