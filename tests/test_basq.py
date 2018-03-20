@@ -71,7 +71,6 @@ def execsql(
         sql,
         input_rows=None,
         typed_header=False,
-        delimiter=None,
         autocommit=False
     ):
     """Exec sql with basq and return rows from output csv if any.
@@ -92,13 +91,8 @@ def execsql(
     is True, basq must return typed header: each column will contain
     its type delimited from name by space.
 
-    If not None, use delimiter as CSV delimiter.
-
     If autocommit is True, basq executes in autocommit mode.
     """
-    csvargs = {'delimiter': delimiter} if delimiter else {}
-    delimiter_arg = ['-t'] if delimiter == '\t' else []
-
     # if sql is a string, make it and input_rows a one-item list
     if hasattr(sql, 'upper'):
         sql = [sql]
@@ -120,10 +114,10 @@ def execsql(
                 colnames = row1.keys()
             except AttributeError:
                 paramstyle_arg += ['qmark']
-                writer = csv.writer(f, **csvargs)
+                writer = csv.writer(f)
             else:
                 paramstyle_arg += ['named']
-                writer = csv.DictWriter(f, colnames, **csvargs)
+                writer = csv.DictWriter(f, colnames)
                 writer.writeheader()
             writer.writerows(rows)
             input_chunk += f.getvalue()
@@ -138,13 +132,12 @@ def execsql(
         ['basq'] +
         paramstyle_arg +
         (['-typed-header'] if typed_header else []) +
-        delimiter_arg +
         (['-autocommit'] if autocommit else []) +
         ['vfp', DBPATH]
     )
 
     out, err = run(cmd, input)
-    return list(csv.reader(StringIO(out), **csvargs))
+    return list(csv.reader(StringIO(out)))
 
 
 def selectsql(*column_defs, rowcount=1):
@@ -168,8 +161,7 @@ def select(
         *column_defs,
         input_rows=None,
         rowcount=1,
-        typed_header=False,
-        delimiter=None
+        typed_header=False
     ):
     """Return rowcount rows of columns specified with column_defs.
 
@@ -179,8 +171,7 @@ def select(
     return execsql(
         selectsql(*column_defs, rowcount=rowcount),
         input_rows=input_rows,
-        typed_header=typed_header,
-        delimiter=delimiter
+        typed_header=typed_header
     )
 
 
@@ -515,18 +506,6 @@ def test_many_input_parameterized_queries(tmpdb):
         ]
     )
     assert execsql("select * from person")[1:] == [['1', 'bill']]
-
-
-def test_tsv_input_output():
-    rows = [
-        ['id', 'name'],
-        ['1', 'john']
-    ]
-    assert select(
-        '? as id', '? as name',
-        input_rows=rows,
-        delimiter='\t'
-    ) == rows
 
 
 def test_ddl(tmpdb):

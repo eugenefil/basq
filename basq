@@ -105,7 +105,7 @@ def rowfunc(paramstyle):
     }.get(paramstyle, tolist)
 
 
-def readrows(file, type_parsers, rowfunc=tolist, delimiter=None):
+def readrows(file, type_parsers, rowfunc=tolist):
     """Parse input CSV rows from file and return rows of values.
 
     Parse each value in a input row from its string representation via
@@ -115,11 +115,8 @@ def readrows(file, type_parsers, rowfunc=tolist, delimiter=None):
 
     Convert row of values to output row format (list or dict) with
     rowfunc.
-
-    If not None, use delimiter as CSV delimiter.
     """
-    delim = {'delimiter': delimiter} if delimiter else {}
-    reader = csv.reader(file, **delim)
+    reader = csv.reader(file)
 
     header = next(reader)
     header = [
@@ -147,16 +144,13 @@ def readrows(file, type_parsers, rowfunc=tolist, delimiter=None):
     return rows
 
 
-def writerows(file, rows, cols, typed_header=False, delimiter=None):
+def writerows(file, rows, cols, typed_header=False):
     """Write output rows to file in CSV format.
 
     If typed_header is True, output column type after column name
     delimited with space.
-
-    If not None, use delimiter as CSV delimiter.
     """
-    delim = {'delimiter': delimiter} if delimiter else {}
-    writer = csv.writer(file, **delim)
+    writer = csv.writer(file)
 
     colnamefunc = {
         False: lambda col: col['name'],
@@ -171,7 +165,6 @@ def main(
         connstr,
         paramstyle=None,
         typed_header=False,
-        delimiter=None,
         autocommit=False
     ):
     conn = adodbapi.connect(connstr, autocommit=autocommit)
@@ -205,8 +198,7 @@ def main(
             input_rows = readrows(
                 sys.stdin,
                 type_parsers(),
-                rowfunc(paramstyle),
-                delimiter=delimiter
+                rowfunc(paramstyle)
             )
 
         results = execsql(cur, sqlcmd, input_rows)
@@ -216,8 +208,7 @@ def main(
                 sys.stdout,
                 rows,
                 cols,
-                typed_header=typed_header,
-                delimiter=delimiter
+                typed_header=typed_header
             )
 
     cur.close()
@@ -256,13 +247,6 @@ def parse_args():
         action='store_true',
         help='output typed header. Each column will contain its type delimited from name by space'
     )
-    parser.add_argument(
-        '-t',
-        action='store_true',
-        help='use tab as CSV delimiter'
-    )
-    parser.set_defaults(delimiter=None)
-
     parser.add_argument(
         '-autocommit',
         action='store_true',
@@ -311,9 +295,6 @@ def parse_args():
     # mssqlparser.set_defaults(getconnstr=mssqlconnstr)
 
     args = parser.parse_args()
-    if args.t:
-        args.delimiter = '\t'
-
     return args
 
 
@@ -350,6 +331,5 @@ if __name__ == '__main__':
         args.getconnstr(args),
         paramstyle=args.paramstyle,
         typed_header=args.typed_header,
-        delimiter=args.delimiter,
         autocommit=args.autocommit
     )
