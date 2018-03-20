@@ -23,14 +23,14 @@ import pytest
 DBPATH = 'vfpdb/db.dbc'
 
 
-# add path to adosql to PATH
+# add path to basq to PATH
 os.environ['PATH'] = (
     path.dirname(path.dirname(__file__)) + ':' + os.environ['PATH']
 )
 
 
 class RunError(subprocess.CalledProcessError):
-    """Raised when adosql returned non-zero exit status."""
+    """Raised when basq returned non-zero exit status."""
 
     def init(self, returncode, cmd, output=None, stderr=None):
         super().init(returncode, cmd, output=output)
@@ -74,13 +74,13 @@ def execsql(
         delimiter=None,
         autocommit=False
     ):
-    """Exec sql with adosql and return rows from output csv if any.
+    """Exec sql with basq and return rows from output csv if any.
 
     sql is a query to execute.
 
     If passed, input_rows must a be a list of rows of input values for
     parameterized query. This list is converted to csv and piped to
-    adosql right after sql. If row of values is a dict, the parameter
+    basq right after sql. If row of values is a dict, the parameter
     style is named and no header row is needed. Otherwise it's
     positiotal (question mark) style and first row must be a header.
 
@@ -89,12 +89,12 @@ def execsql(
     sql. Parameter styles must be the same for all queries in sql.
 
     Returned rows are a list of lists including header. If typed_header
-    is True, adosql must return typed header: each column will contain
+    is True, basq must return typed header: each column will contain
     its type delimited from name by space.
 
     If not None, use delimiter as CSV delimiter.
 
-    If autocommit is True, adosql executes in autocommit mode.
+    If autocommit is True, basq executes in autocommit mode.
     """
     csvargs = {'delimiter': delimiter} if delimiter else {}
     delimiter_arg = ['-t'] if delimiter == '\t' else []
@@ -135,7 +135,7 @@ def execsql(
     input = sep.join(input_chunks)
 
     cmd = (
-        ['adosql'] +
+        ['basq'] +
         paramstyle_arg +
         (['-typed-header'] if typed_header else []) +
         delimiter_arg +
@@ -277,7 +277,7 @@ def test_select_with_typed_header():
         ('string', '\r\n', 'string', None, None),
         ('non-ascii', 'Привет, мир!', 'string', None, None),
         ('number', '1.0', 'number', None, None),
-        # Due to the bug in vfp oledb provider (see comments in adosql
+        # Due to the bug in vfp oledb provider (see comments in basq
         # input type parsers), ints cannot be passed to parameterized
         # queries. Instead they are converted to floats on input.
         ('integer', '1', 'integer', '1.0', 'number'),
@@ -390,9 +390,9 @@ def tmpdb(tmpdir):
     Copy test database to temp directory and chdir to it. chdir back on
     teardown.
 
-    We have to chdir and keep DBPATH relative, because adosql is a
+    We have to chdir and keep DBPATH relative, because basq is a
     Windows program, but when testing in Cygwin tmpdir will be a unix
-    path, which will break adosql if absolute path is given to it.
+    path, which will break basq if absolute path is given to it.
     """
     origcwd = os.getcwd()
 
