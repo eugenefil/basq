@@ -4,8 +4,10 @@ import sys
 import csv
 import argparse
 import datetime
+import decimal
 
 import adodbapi
+import pyodbc
 
 
 COLUMN_NAME = 0
@@ -38,6 +40,9 @@ def execsql(cursor, cmd, input_rows=None, typeconv=None):
 def todate(s):
     return datetime.datetime.strptime(s, '%Y-%m-%d').date()
 
+def totime(s):
+    return datetime.datetime.strptime(s, '%H:%M:%S').time()
+
 def type_parsers():
     idfunc = lambda x: x
     return {
@@ -52,6 +57,7 @@ def type_parsers():
         # integers to Microsoft ACE provider works fine.
         'integer': float,
         'date': todate,
+        'time': totime,
         'boolean': lambda x: bool(int(x))
     }
 
@@ -99,7 +105,8 @@ def readrows(file, type_parsers, rowfunc=tolist):
             break
 
         rows.append(rowfunc(
-            map(lambda f, v: f(v), colparsers, row),
+            # pyodbc breaks on map objects, use lists
+            list(map(lambda f, v: f(v), colparsers, row)),
             colnames
         ))
     return rows
@@ -130,9 +137,6 @@ def main(
         typeconv=None
     ):
     cur = conn.cursor()
-
-    if paramstyle:
-        cur.paramstyle = paramstyle
 
     for line in sys.stdin:
         sqlcmd = line.strip()
@@ -203,6 +207,9 @@ def vfpconn(args):
         conn.variantConversions[adodbapi.ado_consts.adDBDate]
     )
 
+    if args.paramstyle:
+        conn.paramstyle = args.paramstyle
+
     return conn
 
 
@@ -211,25 +218,62 @@ ADO_INTEGER = adodbapi.apibase.DBAPITypeObject(
     adodbapi.apibase.adoLongTypes
 )
 
-def ado_type_to_general(adotype):
-    if adotype == adodbapi.STRING:
+def ado_type_to_general(type):
+    if type == adodbapi.STRING:
         return 'string'
     # compare before int, since bool also compares true to int types
-    elif adotype == adodbapi.ado_consts.adBoolean:
+    elif type == adodbapi.ado_consts.adBoolean:
         return 'boolean'
-    elif adotype == ADO_INTEGER:
+    elif type == ADO_INTEGER:
         return 'integer'
-    elif adotype == adodbapi.NUMBER:
+    elif type == adodbapi.NUMBER:
         return 'number'
-    elif adotype == adodbapi.DATETIME:
+    elif type == adodbapi.DATETIME:
         return 'date'
-    raise TypeError('ADO type %s cannot be converted to general type' % adotype)
+    raise TypeError('ADO type %s cannot be converted to general type' % type)
 
 
 def vfpvals(*args, **kwargs):
     return {
         'conn': vfpconn(*args, **kwargs),
         'typeconv': ado_type_to_general
+    }
+
+
+def odbc_type_to_general(type):
+    # check number types explicitly, because pyodbc.NUMBER == float
+    if type == int:
+        return 'integer'
+    elif type == decimal.Decimal:
+        return 'number'
+    elif type == pyodbc.STRING:
+        return 'string'
+    elif type == datetime.date:
+        return 'date'
+    elif type == datetime.time:
+        return 'time'
+    raise TypeError('ODBC type %s cannot be converted to general type' % type)
+
+
+def tpsvals(args):
+    connstr = 'DRIVER={{Topspeed ODBC Driver}};DBQ={datasource}\!;Extension=tps;Oem=N;Datefield={datefields};Timefield={timefields};SERVER=NotTheServer;'
+    connstr = connstr.format(
+        datasource=args.database,
+        datefields=args.datefields.replace(',', '|'),
+        timefields=args.timefields.replace(',', '|')
+    )
+    # pyodbc disables autocommit by default making TopSpeed fail with
+    # SQLSetConnnectAttr(SQL_ATTR_AUTOCOMMIT), because it does not
+    # support autocommit. We enable it, so pyodbc does not try to
+    # disable it.
+    conn = pyodbc.connect(connstr, autocommit=True)
+
+    if args.paramstyle and args.paramstyle != 'qmark':
+        raise Exception('paramstyle other than qmark is not supported')
+
+    return {
+        'conn': conn,
+        'typeconv': odbc_type_to_general
     }
 
 
@@ -248,34 +292,54 @@ def mssqlconnstr(args):
 
 
 def parse_args():
-    parser = argparse.ArgumentParser()
-    parser.add_argument(
+    p = argparse.ArgumentParser()
+    p.add_argument(
         '--paramstyle',
         choices=('qmark', 'named'),
         help='execute parameterized query. Input values are read as CSV (with typed header assumed) that follows right after the line of query on stdin. Param style in query is one of: qmark (e.g. where id = ?) or named (e.g. where id = :id). With latter column id must be in CSV. Default style: qmark'
     )
-    parser.add_argument(
+    p.add_argument(
         '--typed-header',
         action='store_true',
         help='output typed header. Each column will contain its type delimited from name by space'
     )
-    parser.add_argument(
+    p.add_argument(
         '--autocommit',
         action='store_true',
         help='commit after each SQL statement. By default, SQL statements are executed inside a transaction. E.g. FoxPro DDL statements work only in this mode'
     )
 
-    subparsers = parser.add_subparsers(title='commands')
+    subparsers = p.add_subparsers(title='commands')
 
-    vfpparser = subparsers.add_parser(
+    vfp = subparsers.add_parser(
         'vfp',
         help='Visual FoxPro'
     )
-    vfpparser.add_argument(
+    vfp.add_argument(
         'database',
         help='path to .dbc database file'
     )
-    vfpparser.set_defaults(getdbvals=vfpvals)
+    vfp.set_defaults(getdbvals=vfpvals)
+
+    tps = subparsers.add_parser(
+        'tps',
+        help='TopSpeed'
+    )
+    tps.add_argument(
+        '--datefields',
+        default='',
+        help='comma-separated list of date fields (not aliases!) in query'
+    )
+    tps.add_argument(
+        '--timefields',
+        default='',
+        help='comma-separated list of time fields (not aliases!) in query'
+    )
+    tps.add_argument(
+        'database',
+        help='path to .tps database file'
+    )
+    tps.set_defaults(getdbvals=tpsvals)
 
     # mssqlparser = subparsers.add_parser(
     #     'mssql',
@@ -306,7 +370,7 @@ def parse_args():
     # )
     # mssqlparser.set_defaults(getconnstr=mssqlconnstr)
 
-    args = parser.parse_args()
+    args = p.parse_args()
     return args
 
 
