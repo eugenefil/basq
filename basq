@@ -371,6 +371,10 @@ def parse_args():
     # mssqlparser.set_defaults(getconnstr=mssqlconnstr)
 
     args = p.parse_args()
+    # exit if no database was chosen
+    if not 'getdbvals' in args:
+        p.print_help()
+        sys.exit(1)
     return args
 
 
