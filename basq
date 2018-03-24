@@ -256,9 +256,10 @@ def odbc_type_to_general(type):
 
 
 def tpsvals(args):
-    connstr = 'DRIVER={{Topspeed ODBC Driver}};DBQ={datasource}\!;Extension=tps;Oem=N;Datefield={datefields};Timefield={timefields};SERVER=NotTheServer;'
+    connstr = 'DRIVER={{Topspeed ODBC Driver}};DBQ={datasource}\!;Extension=tps;Oem=N;Pwd={pwd};Datefield={datefields};Timefield={timefields};SERVER=NotTheServer;'
     connstr = connstr.format(
         datasource=args.database,
+        pwd=args.pwd,
         datefields=args.datefields.replace(',', '|'),
         timefields=args.timefields.replace(',', '|')
     )
@@ -334,6 +335,11 @@ def parse_args():
         '--timefields',
         default='',
         help='comma-separated list of time fields (not aliases!) in query'
+    )
+    tps.add_argument(
+        '--pwd',
+        default='',
+        help='database password'
     )
     tps.add_argument(
         'database',
