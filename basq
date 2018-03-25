@@ -257,7 +257,7 @@ def odbc_type_to_general(type):
 
 
 def tpsvals(args):
-    connstr = r'DRIVER={{Topspeed ODBC Driver}};DBQ={datasource}\!;Extension=tps;Oem=N;Pwd={pwd};Datefield={datefields};Timefield={timefields};SERVER=NotTheServer;'
+    connstr = r'DRIVER={{Topspeed ODBC Driver}};DBQ={datasource}\!;Extension=tps;Oem=N;Pwd={pwd};Datefield={datecols};Timefield={timecols};SERVER=NotTheServer;'
     connstr = connstr.format(
         # TopSpeed accepts forward slashes in local paths
         # (e.g. c:/test.tps) on Windows, but fails with net share
@@ -268,8 +268,8 @@ def tpsvals(args):
         # normpath which does the conversion.
         datasource=ospath.realpath(args.database),
         pwd=args.pwd,
-        datefields=args.datefields.replace(',', '|'),
-        timefields=args.timefields.replace(',', '|')
+        datecols=args.datecols.replace(',', '|'),
+        timecols=args.timecols.replace(',', '|')
     )
     # pyodbc disables autocommit by default making TopSpeed fail with
     # SQLSetConnnectAttr(SQL_ATTR_AUTOCOMMIT), because it does not
@@ -335,14 +335,14 @@ def parse_args():
         help='TopSpeed'
     )
     tps.add_argument(
-        '--datefields',
+        '--datecols',
         default='',
-        help='comma-separated list of date fields (not aliases!) in query'
+        help='comma-separated list of date columns (not aliases!) in query'
     )
     tps.add_argument(
-        '--timefields',
+        '--timecols',
         default='',
-        help='comma-separated list of time fields (not aliases!) in query'
+        help='comma-separated list of time columns (not aliases!) in query'
     )
     tps.add_argument(
         '--pwd',
