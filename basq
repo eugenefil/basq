@@ -5,6 +5,7 @@ import csv
 import argparse
 import datetime
 import decimal
+import os.path as ospath
 
 import adodbapi
 import pyodbc
@@ -256,9 +257,16 @@ def odbc_type_to_general(type):
 
 
 def tpsvals(args):
-    connstr = 'DRIVER={{Topspeed ODBC Driver}};DBQ={datasource}\!;Extension=tps;Oem=N;Pwd={pwd};Datefield={datefields};Timefield={timefields};SERVER=NotTheServer;'
+    connstr = r'DRIVER={{Topspeed ODBC Driver}};DBQ={datasource}\!;Extension=tps;Oem=N;Pwd={pwd};Datefield={datefields};Timefield={timefields};SERVER=NotTheServer;'
     connstr = connstr.format(
-        datasource=args.database,
+        # TopSpeed accepts forward slashes in local paths
+        # (e.g. c:/test.tps) on Windows, but fails with net share
+        # paths (e.g. //srv/test.tps). Use realpath to convert forward
+        # slashes to backward slashes. normpath does the conversion
+        # too, but may break things with symlinks, while realpath
+        # resolves symlinks and then calls abspath which calls
+        # normpath which does the conversion.
+        datasource=ospath.realpath(args.database),
         pwd=args.pwd,
         datefields=args.datefields.replace(',', '|'),
         timefields=args.timefields.replace(',', '|')
