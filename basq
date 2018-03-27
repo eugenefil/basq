@@ -335,17 +335,17 @@ def parse_args():
         help='TopSpeed'
     )
     tps.add_argument(
-        '--datecols',
+        '-d', '--datecols',
         default='',
         help='comma-separated list of date columns (not aliases!) in query'
     )
     tps.add_argument(
-        '--timecols',
+        '-t', '--timecols',
         default='',
         help='comma-separated list of time columns (not aliases!) in query'
     )
     tps.add_argument(
-        '--pwd',
+        '-p', '--pwd',
         default='',
         help='database password'
     )
